@@ -32,7 +32,7 @@
     totalWeeks: 20,
     classNum: 11,
     itemHeight: 56,         // 原版默认 56dp
-    alpha: 64,              // 原版默认 64%
+    alpha: 100,             // 新版风格：实色课程块（可调半透明）
     showOtherWeek: true,
     sundayFirst: false,
     sameLen: false,         // 每节课时长相同
@@ -53,7 +53,7 @@
     s.classNum = clamp(Number(s.classNum) || 11, 8, 16);
     s.totalWeeks = clamp(Number(s.totalWeeks) || 20, 1, 40);
     s.itemHeight = clamp(Number(s.itemHeight) || 56, 40, 90);
-    s.alpha = clamp(Number(s.alpha) || 64, 10, 100);
+    s.alpha = clamp(Number(s.alpha) || 100, 10, 100);
     if (!s.termStart || !/^\d{4}-\d{2}-\d{2}$/.test(String(s.termStart))) {
       const t = new Date();
       t.setDate(t.getDate() - ((t.getDay() + 6) % 7)); // 本周一

@@ -8,39 +8,34 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <!-- 顶栏 -->
+  <!-- 顶栏：周标题（点击打开周数面板）+ 右侧图标组 -->
   <header class="topbar">
-    <div class="title-area">
-      <div class="app-title">WakeUp 课程表</div>
-      <div class="date-info" id="todayInfo"></div>
+    <button type="button" class="tb-left" id="tbWeekBtn" title="选择周数 / 切换课表">
+      <div class="tb-title"><span id="weekLabel">第 1 周</span><span class="tb-status" id="weekStatus"></span></div>
+      <div class="tb-date" id="todayInfo"></div>
+    </button>
+    <div class="wk-nav">
+      <button type="button" id="prevWeek" title="上一周 (←)">‹</button>
+      <button type="button" id="nextWeek" title="下一周 (→)">›</button>
     </div>
 
-    <div class="schedule-area">
-      <select id="scheduleSelect" title="切换课表"></select>
-      <button class="icon-btn" id="btnManageSchedules" title="管理课表（新建/重命名/排序/删除）">☰</button>
-    </div>
-
-    <div class="week-nav">
-      <button class="icon-btn" id="prevWeek" title="上一周 (←)">‹</button>
-      <div class="week-display">
-        <span id="weekLabel">第 1 周</span>
-        <select id="weekSelect" title="跳转周次"></select>
-      </div>
-      <button class="icon-btn" id="nextWeek" title="下一周 (→)">›</button>
-      <button class="text-btn" id="backToday" title="回到本周 (Home)">回到本周</button>
-    </div>
-
-    <div class="actions">
-      <button class="text-btn" id="btnTodayCourses">今日课程</button>
+    <div class="tb-actions">
+      <button type="button" class="tb-icon" id="btnAdd" title="添加课程 (N)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
       <div class="menu-wrap">
-        <button class="text-btn" id="btnImport">导入 ▾</button>
+        <button type="button" class="tb-icon" id="btnImport" title="导入">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        </button>
         <div class="dropdown" id="importMenu" hidden>
           <button data-act="file">从文件导入…</button>
           <button data-act="code">从文本口令导入…</button>
         </div>
       </div>
       <div class="menu-wrap">
-        <button class="text-btn" id="btnExport">导出 ▾</button>
+        <button type="button" class="tb-icon" id="btnExport" title="导出 / 分享">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m0 0L8 7m4-4l4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        </button>
         <div class="dropdown" id="exportMenu" hidden>
           <button data-act="backup">完整备份 (.json)</button>
           <button data-act="share-file">分享当前课表 (.json)</button>
@@ -49,8 +44,18 @@
           <button data-act="qr">QR 码 / 文本口令…</button>
         </div>
       </div>
-      <button class="text-btn" id="btnSettings">设置</button>
-      <button class="primary-btn" id="btnAdd">＋ 添加课程</button>
+      <div class="menu-wrap">
+        <button type="button" class="tb-icon" id="btnMore" title="更多">
+          <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+        </button>
+        <div class="dropdown" id="moreMenu" hidden>
+          <button data-act="settings">课表设置</button>
+          <button data-act="today">今日课程</button>
+          <button data-act="backtoday">回到本周</button>
+          <div class="dd-line"></div>
+          <button data-act="theme" id="btnThemeToggle">夜间模式</button>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -60,64 +65,125 @@
     <div class="empty-tip" id="emptyTip" hidden>
       <div class="empty-icon">📅</div>
       <div class="empty-text">还没有课程</div>
-      <div class="empty-sub">点击右上角「添加课程」或右下角 ＋ 开始创建你的课表</div>
+      <div class="empty-sub">点击右上角 ＋ 或双击某天列开始添加课程</div>
     </div>
   </main>
 
-  <!-- 悬浮添加按钮（还原原版 FAB） -->
-  <button class="fab" id="fabAdd" title="添加课程">＋</button>
+  <!-- 悬浮添加按钮 -->
+  <button class="fab" id="fabAdd" title="添加课程">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
 
   <!-- 模式提示（浏览器模式） -->
   <div class="mode-badge" id="modeBadge" hidden>浏览器模式 · 数据保存在 localStorage</div>
+
+  <!-- 周数 / 课表 面板（底部弹层） -->
+  <div class="modal-overlay sheet-overlay" id="weekPanel" hidden>
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-row-head">
+        <span>周数</span>
+        <button type="button" class="link-btn" id="btnBackCurWeek">修改当前周</button>
+      </div>
+      <div class="wp-slider-row">
+        <input type="range" id="wpSlider" min="1" max="20" step="1">
+        <span class="wp-val" id="wpVal">第1周</span>
+      </div>
+      <div class="sheet-row-head">
+        <span>课表</span>
+        <span class="ops">
+          <button type="button" class="link-btn" id="btnNewSch">新建课表</button>
+          <button type="button" class="link-btn" id="btnManageSch">管理</button>
+        </span>
+      </div>
+      <div class="sch-cards" id="schCards"></div>
+    </div>
+  </div>
 
   <!-- 课程 查看 detail / 编辑 edit 弹窗 -->
   <div class="modal-overlay" id="courseModal" hidden>
     <div class="modal">
       <div class="modal-header">
         <span id="courseModalTitle">课程详情</span>
-        <button class="icon-btn close-btn" data-close="courseModal">×</button>
+        <button class="close-btn" data-close="courseModal">×</button>
       </div>
       <div class="modal-body">
         <div class="course-detail" id="courseDetail"></div>
         <form class="course-form" id="courseForm" hidden>
-          <div class="form-row two-col">
-            <div>
-              <label>课程名 <i>*</i></label>
-              <input type="text" id="f_name" maxlength="30" placeholder="如：高等数学A(2)" required>
-            </div>
-            <div>
-              <label>学分</label>
-              <input type="number" id="f_credit" min="0" max="30" step="0.5" placeholder="选填">
-            </div>
+          <div class="cf-head">
+            <span class="cf-ico">📖</span>
+            <input type="text" id="f_name" maxlength="30" placeholder="课程名" required>
           </div>
-          <div class="form-row two-col">
-            <div>
-              <label>备注</label>
-              <input type="text" id="f_note" maxlength="100" placeholder="选填，如：带教材">
-            </div>
-            <div>
-              <label>颜色</label>
-              <div class="color-pick" id="colorPick"></div>
-            </div>
+          <button type="button" class="link-btn cf-color-toggle" id="btnToggleColor">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
+            点此更改颜色
+          </button>
+          <div class="color-pick" id="colorPick" hidden></div>
+          <div class="cf-row">
+            <span class="cf-ico">🚩</span>
+            <input type="number" id="f_credit" min="0" max="30" step="0.5" placeholder="学分（可不填）">
           </div>
-          <div class="slots-title">上课时间段</div>
+          <div class="cf-row">
+            <span class="cf-ico">📝</span>
+            <input type="text" id="f_note" maxlength="100" placeholder="备注（可不填）">
+          </div>
+          <div class="slots-title"><span>时间段</span></div>
           <div id="slotList"></div>
-          <div class="form-row">
-            <button type="button" class="text-btn slot-add-btn" id="btnAddSlot">＋ 添加时间段（复制上一段）</button>
-          </div>
           <div class="form-tip" id="formTip"></div>
+          <button type="button" class="mini-fab" id="btnAddSlot" title="添加时间段（复制上一段）">＋</button>
         </form>
       </div>
       <div class="modal-footer">
-        <button class="danger-btn" id="btnDeleteCourse">删除</button>
+        <button class="pill-btn danger-ico" id="btnDeleteCourse" title="删除">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+        </button>
         <span class="delete-scope" id="deleteScopeArea" hidden>
-          <button class="danger-btn" id="btnDeleteSlotOnly">仅删除该时间段</button>
-          <button class="danger-btn" id="btnDeleteWholeCourse">删除整门课程</button>
-          <button class="text-btn" id="btnCancelDelete">取消</button>
+          <button class="pill-btn danger" id="btnDeleteSlotOnly">仅删除该时间段</button>
+          <button class="pill-btn danger" id="btnDeleteWholeCourse">删除整门课程</button>
+          <button class="pill-btn" id="btnCancelDelete">取消</button>
         </span>
+        <button class="pill-btn" id="btnCancelCourse" hidden>取消</button>
         <span class="flex-sp"></span>
-        <button class="text-btn" data-close="courseModal">关闭</button>
-        <button class="primary-btn" id="btnEditCourse">修改</button>
+        <button class="pill-btn big" id="btnEditCourse">编辑</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 周次选择弹窗（数字网格 + 日期模式） -->
+  <div class="modal-overlay" id="weekDlg" hidden>
+    <div class="modal sm dlg">
+      <div class="dlg-tabs">
+        <span class="dlg-title" id="wdTitle">请选择周数</span>
+        <button type="button" class="link-btn" id="wdModeBtn">日期模式</button>
+      </div>
+      <div class="wg-grid" id="wgGrid"></div>
+      <div class="wg-date" id="wgDate" hidden>
+        <input type="date" id="wdDf"> <span class="t-sep">~</span> <input type="date" id="wdDt">
+      </div>
+      <div class="wg-quick" id="wgQuick">
+        <button type="button" id="wgAll">全周</button>
+        <button type="button" id="wgOdd">单周</button>
+        <button type="button" id="wgEven">双周</button>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="link-btn" id="wdCancel">取消</button>
+        <button type="button" class="link-btn strong" id="wdOk">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 时间选择弹窗（三列点选） -->
+  <div class="modal-overlay" id="timeDlg" hidden>
+    <div class="modal sm dlg">
+      <div class="dlg-tabs"><span class="dlg-title">请选择时间</span></div>
+      <div class="tp-cols">
+        <div class="tp-col" id="tpDay"><div class="tp-head">星期</div></div>
+        <div class="tp-col" id="tpStart"><div class="tp-head">开始节</div></div>
+        <div class="tp-col" id="tpEnd"><div class="tp-head">结束节</div></div>
+      </div>
+      <div class="dlg-foot">
+        <button type="button" class="link-btn" id="tpCancel">取消</button>
+        <button type="button" class="link-btn strong" id="tpOk">确定</button>
       </div>
     </div>
   </div>
@@ -126,79 +192,77 @@
   <div class="modal-overlay" id="settingsModal" hidden>
     <div class="modal wide">
       <div class="modal-header">
-        <span>设置</span>
-        <button class="icon-btn close-btn" data-close="settingsModal">×</button>
+        <span>课表设置</span>
+        <button class="close-btn" data-close="settingsModal">×</button>
       </div>
       <div class="modal-body">
-        <div class="settings-section">
-          <h3>课表数据</h3>
-          <div class="form-row">
-            <label>课表名称</label>
-            <input type="text" id="s_scheduleName" maxlength="30">
-          </div>
-          <div class="form-row three-col">
-            <div>
-              <label>学期开始日期（建议选周一）</label>
-              <input type="date" id="s_termStart">
-            </div>
-            <div>
-              <label>学期周数</label>
-              <input type="number" id="s_totalWeeks" min="1" max="40">
-            </div>
-            <div>
-              <label>一天课程节数</label>
-              <select id="s_classNum"></select>
-            </div>
+        <div class="set-name-card">
+          <div class="cf-row">
+            <span class="sr-label">课表名称</span>
+            <input type="text" id="s_scheduleName" maxlength="30" style="text-align:right">
           </div>
         </div>
-        <div class="settings-section">
-          <h3>上课时间</h3>
-          <div class="form-row inline">
-            <label class="switch-label">
-              <input type="checkbox" id="s_sameLen">
-              每节课时长相同
-            </label>
-            <div class="same-len-edit" id="sameLenEdit" hidden>
-              每节 <input type="number" id="s_lessonLen" min="20" max="120" step="5"> 分钟
-              <button type="button" class="text-btn" id="btnApplyLen">应用到全部</button>
+
+        <div class="set-group">课表数据</div>
+        <div class="set-card">
+          <div class="set-row">
+            <span class="sr-label">开学时间</span>
+            <div class="sr-ctrl"><input type="date" id="s_termStart"></div>
+          </div>
+          <div class="set-row">
+            <span class="sr-label">学期周数</span>
+            <div class="sr-ctrl"><input type="number" id="s_totalWeeks" min="1" max="40"> 周</div>
+          </div>
+          <div class="set-row">
+            <span class="sr-label">一天课程节数</span>
+            <div class="sr-ctrl"><select id="s_classNum"></select> 节</div>
+          </div>
+          <div class="set-row">
+            <span class="sr-label">上课时间</span>
+            <div class="sr-ctrl">
+              <label class="switch-label"><input type="checkbox" id="s_sameLen">每节等长</label>
+              <input type="number" id="s_lessonLen" min="20" max="120" step="5" style="width:56px"> 分钟
+              <button type="button" class="link-btn" id="btnApplyLen">应用到全部</button>
             </div>
           </div>
-          <div class="time-table" id="timeTable"></div>
+          <div class="set-row">
+            <div class="time-table" id="timeTable" style="width:100%"></div>
+          </div>
         </div>
-        <div class="settings-section">
-          <h3>课表外观</h3>
-          <div class="form-row two-col">
-            <div>
-              <label>课程块透明度 <span id="alphaVal" class="val-badge"></span></label>
-              <input type="range" id="s_alpha" min="10" max="100" step="1">
-            </div>
-            <div>
-              <label>课程块高度 <span id="heightVal" class="val-badge"></span></label>
-              <input type="range" id="s_itemHeight" min="40" max="90" step="2">
-            </div>
+
+        <div class="set-group">课表外观</div>
+        <div class="set-card">
+          <div class="set-row">
+            <span class="sr-label">课程块不透明度</span>
+            <div class="sr-ctrl"><input type="range" id="s_alpha" min="10" max="100" step="1"><span class="sr-val" id="alphaVal"></span></div>
           </div>
-          <div class="form-row two-col">
-            <div>
-              <label>主题</label>
+          <div class="set-row">
+            <span class="sr-label">课程格子高度</span>
+            <div class="sr-ctrl"><input type="range" id="s_itemHeight" min="40" max="90" step="2"><span class="sr-val" id="heightVal"></span></div>
+          </div>
+          <div class="set-row">
+            <span class="sr-label">主题</span>
+            <div class="sr-ctrl">
               <select id="s_theme">
                 <option value="light">浅色</option>
                 <option value="dark">深色</option>
               </select>
             </div>
-            <div>
-              <label>其他选项</label>
-              <div class="check-group">
-                <label class="switch-label"><input type="checkbox" id="s_showOtherWeek">显示非本周课程</label>
-                <label class="switch-label"><input type="checkbox" id="s_sundayFirst">周日为每周第一天</label>
-              </div>
-            </div>
+          </div>
+          <div class="set-row">
+            <span class="sr-label">显示非本周课程</span>
+            <div class="sr-ctrl"><input type="checkbox" id="s_showOtherWeek"></div>
+          </div>
+          <div class="set-row">
+            <span class="sr-label">周日为每周第一天</span>
+            <div class="sr-ctrl"><input type="checkbox" id="s_sundayFirst"></div>
           </div>
         </div>
       </div>
       <div class="modal-footer">
         <span class="flex-sp"></span>
-        <button class="text-btn" data-close="settingsModal">取消</button>
-        <button class="primary-btn" id="btnSaveSettings">保存</button>
+        <button class="pill-btn" data-close="settingsModal">取消</button>
+        <button class="pill-btn primary" id="btnSaveSettings">保存</button>
       </div>
     </div>
   </div>
@@ -208,18 +272,18 @@
     <div class="modal">
       <div class="modal-header">
         <span>管理课表</span>
-        <button class="icon-btn close-btn" data-close="scheduleModal">×</button>
+        <button class="close-btn" data-close="scheduleModal">×</button>
       </div>
       <div class="modal-body">
         <div class="sch-new-row">
           <input type="text" id="newScheduleName" placeholder="新课表名称，如：2026 秋季学期" maxlength="30">
-          <button class="primary-btn" id="btnCreateSchedule">＋ 新建</button>
+          <button class="pill-btn primary" id="btnCreateSchedule">＋ 新建</button>
         </div>
         <div id="scheduleList"></div>
       </div>
       <div class="modal-footer">
         <span class="flex-sp"></span>
-        <button class="primary-btn" data-close="scheduleModal">完成</button>
+        <button class="pill-btn primary" data-close="scheduleModal">完成</button>
       </div>
     </div>
   </div>
@@ -229,14 +293,14 @@
     <div class="modal">
       <div class="modal-header">
         <span id="todayModalTitle">今日课程</span>
-        <button class="icon-btn close-btn" data-close="todayModal">×</button>
+        <button class="close-btn" data-close="todayModal">×</button>
       </div>
       <div class="modal-body">
         <div class="today-list" id="todayList"></div>
       </div>
       <div class="modal-footer">
         <span class="flex-sp"></span>
-        <button class="primary-btn" data-close="todayModal">关闭</button>
+        <button class="pill-btn" data-close="todayModal">关闭</button>
       </div>
     </div>
   </div>
@@ -246,19 +310,19 @@
     <div class="modal sm">
       <div class="modal-header">
         <span>分享课表：QR 码 / 口令</span>
-        <button class="icon-btn close-btn" data-close="qrModal">×</button>
+        <button class="close-btn" data-close="qrModal">×</button>
       </div>
       <div class="modal-body">
         <div class="qr-box" id="qrBox"></div>
         <div class="qr-tip" id="qrTip"></div>
-        <label class="field-label">文本口令（复制发给对方，或由对方「导入 ▾ → 从文本口令导入」粘贴）</label>
+        <label class="field-label">文本口令（复制发给对方，或由对方「导入 → 从文本口令导入」粘贴）</label>
         <textarea id="shareCode" readonly rows="4"></textarea>
       </div>
       <div class="modal-footer">
-        <button class="text-btn" id="btnCopyCode">复制口令</button>
-        <button class="text-btn" id="btnSaveShareFile">保存为文件</button>
+        <button class="pill-btn" id="btnCopyCode">复制口令</button>
+        <button class="pill-btn" id="btnSaveShareFile">保存为文件</button>
         <span class="flex-sp"></span>
-        <button class="primary-btn" data-close="qrModal">关闭</button>
+        <button class="pill-btn" data-close="qrModal">关闭</button>
       </div>
     </div>
   </div>
@@ -268,7 +332,7 @@
     <div class="modal sm">
       <div class="modal-header">
         <span>从文本口令导入</span>
-        <button class="icon-btn close-btn" data-close="codeImportModal">×</button>
+        <button class="close-btn" data-close="codeImportModal">×</button>
       </div>
       <div class="modal-body">
         <label class="field-label">粘贴以 WU1: 或 WU0: 开头的口令，将作为新课表导入</label>
@@ -276,8 +340,8 @@
       </div>
       <div class="modal-footer">
         <span class="flex-sp"></span>
-        <button class="text-btn" data-close="codeImportModal">取消</button>
-        <button class="primary-btn" id="btnImportCode">导入</button>
+        <button class="pill-btn" data-close="codeImportModal">取消</button>
+        <button class="pill-btn primary" id="btnImportCode">导入</button>
       </div>
     </div>
   </div>
@@ -287,7 +351,7 @@
     <div class="modal sm">
       <div class="modal-header">
         <span>导入课表</span>
-        <button class="icon-btn close-btn" data-close="importChoiceModal">×</button>
+        <button class="close-btn" data-close="importChoiceModal">×</button>
       </div>
       <div class="modal-body">
         <div class="import-summary" id="importSummary"></div>
@@ -302,8 +366,8 @@
       </div>
       <div class="modal-footer">
         <span class="flex-sp"></span>
-        <button class="text-btn" data-close="importChoiceModal">取消</button>
-        <button class="primary-btn" id="btnConfirmImport">导入</button>
+        <button class="pill-btn" data-close="importChoiceModal">取消</button>
+        <button class="pill-btn primary" id="btnConfirmImport">导入</button>
       </div>
     </div>
   </div>
