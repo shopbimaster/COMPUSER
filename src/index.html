@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:">
+  <title>WakeUp 课程表 - 本地版</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- 顶栏 -->
+  <header class="topbar">
+    <div class="title-area">
+      <div class="app-title">WakeUp 课程表</div>
+      <div class="date-info" id="todayInfo"></div>
+    </div>
+
+    <div class="week-nav">
+      <button class="icon-btn" id="prevWeek" title="上一周 (←)">‹</button>
+      <div class="week-display">
+        <span id="weekLabel">第 1 周</span>
+        <select id="weekSelect" title="跳转周次"></select>
+      </div>
+      <button class="icon-btn" id="nextWeek" title="下一周 (→)">›</button>
+      <button class="text-btn" id="backToday" title="回到本周 (Home)">回到本周</button>
+    </div>
+
+    <div class="actions">
+      <button class="text-btn" id="btnTodayCourses">今日课程</button>
+      <button class="text-btn" id="btnImport">导入</button>
+      <button class="text-btn" id="btnExport">导出</button>
+      <button class="text-btn" id="btnSettings">设置</button>
+      <button class="primary-btn" id="btnAdd">＋ 添加课程</button>
+    </div>
+  </header>
+
+  <!-- 课程表网格 -->
+  <main class="schedule-wrap" id="scheduleWrap">
+    <div class="grid" id="grid"></div>
+    <div class="empty-tip" id="emptyTip" hidden>
+      <div class="empty-icon">📅</div>
+      <div class="empty-text">还没有课程</div>
+      <div class="empty-sub">点击右上角「添加课程」或右下角 ＋ 开始创建你的课表</div>
+    </div>
+  </main>
+
+  <!-- 悬浮添加按钮（还原原版 FAB） -->
+  <button class="fab" id="fabAdd" title="添加课程">＋</button>
+
+  <!-- 模式提示（浏览器模式） -->
+  <div class="mode-badge" id="modeBadge" hidden>浏览器模式 · 数据保存在 localStorage</div>
+
+  <!-- 课程 查看 detail / 编辑 edit 弹窗 -->
+  <div class="modal-overlay" id="courseModal" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <span id="courseModalTitle">课程详情</span>
+        <button class="icon-btn close-btn" data-close="courseModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="course-detail" id="courseDetail"></div>
+        <form class="course-form" id="courseForm" hidden>
+          <div class="form-row">
+            <label>课程名 <i>*</i></label>
+            <input type="text" id="f_name" maxlength="30" placeholder="如：高等数学A(2)" required>
+          </div>
+          <div class="form-row two-col">
+            <div>
+              <label>教师</label>
+              <input type="text" id="f_teach" maxlength="20" placeholder="如：张三">
+            </div>
+            <div>
+              <label>教室</label>
+              <input type="text" id="f_room" maxlength="30" placeholder="如：逸夫楼101">
+            </div>
+          </div>
+          <div class="form-row two-col">
+            <div>
+              <label>星期 <i>*</i></label>
+              <select id="f_day"></select>
+            </div>
+            <div>
+              <label>周类型</label>
+              <select id="f_odd">
+                <option value="0">每周</option>
+                <option value="1">单周</option>
+                <option value="2">双周</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row two-col">
+            <div>
+              <label>节次 <i>*</i></label>
+              <div class="range-pick">
+                <select id="f_start"></select>
+                <span>~</span>
+                <select id="f_end"></select>
+              </div>
+            </div>
+            <div>
+              <label>周次 <i>*</i></label>
+              <div class="range-pick">
+                <input type="number" id="f_startWeek" min="1" max="40" value="1">
+                <span>~</span>
+                <input type="number" id="f_endWeek" min="1" max="40" value="20">
+              </div>
+            </div>
+          </div>
+          <div class="form-row">
+            <label>颜色</label>
+            <div class="color-pick" id="colorPick"></div>
+          </div>
+          <div class="form-tip" id="formTip"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="danger-btn" id="btnDeleteCourse">删除</button>
+        <span class="flex-sp"></span>
+        <button class="text-btn" data-close="courseModal">关闭</button>
+        <button class="primary-btn" id="btnEditCourse">修改</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 设置弹窗 -->
+  <div class="modal-overlay" id="settingsModal" hidden>
+    <div class="modal wide">
+      <div class="modal-header">
+        <span>设置</span>
+        <button class="icon-btn close-btn" data-close="settingsModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-section">
+          <h3>学期数据</h3>
+          <div class="form-row three-col">
+            <div>
+              <label>学期开始日期（建议选周一）</label>
+              <input type="date" id="s_termStart">
+            </div>
+            <div>
+              <label>学期周数</label>
+              <input type="number" id="s_totalWeeks" min="1" max="40">
+            </div>
+            <div>
+              <label>一天课程节数</label>
+              <select id="s_classNum"></select>
+            </div>
+          </div>
+        </div>
+        <div class="settings-section">
+          <h3>上课时间</h3>
+          <div class="form-row inline">
+            <label class="switch-label">
+              <input type="checkbox" id="s_sameLen">
+              每节课时长相同
+            </label>
+            <div class="same-len-edit" id="sameLenEdit" hidden>
+              每节 <input type="number" id="s_lessonLen" min="20" max="120" step="5"> 分钟
+              <button type="button" class="text-btn" id="btnApplyLen">应用到全部</button>
+            </div>
+          </div>
+          <div class="time-table" id="timeTable"></div>
+        </div>
+        <div class="settings-section">
+          <h3>课表外观</h3>
+          <div class="form-row two-col">
+            <div>
+              <label>课程块透明度 <span id="alphaVal" class="val-badge"></span></label>
+              <input type="range" id="s_alpha" min="10" max="100" step="1">
+            </div>
+            <div>
+              <label>课程块高度 <span id="heightVal" class="val-badge"></span></label>
+              <input type="range" id="s_itemHeight" min="40" max="90" step="2">
+            </div>
+          </div>
+          <div class="form-row two-col">
+            <div>
+              <label>主题</label>
+              <select id="s_theme">
+                <option value="light">浅色</option>
+                <option value="dark">深色</option>
+              </select>
+            </div>
+            <div>
+              <label>其他选项</label>
+              <div class="check-group">
+                <label class="switch-label"><input type="checkbox" id="s_showOtherWeek">显示非本周课程</label>
+                <label class="switch-label"><input type="checkbox" id="s_sundayFirst">周日为每周第一天</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <span class="flex-sp"></span>
+        <button class="text-btn" data-close="settingsModal">取消</button>
+        <button class="primary-btn" id="btnSaveSettings">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 今日课程弹窗 -->
+  <div class="modal-overlay" id="todayModal" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <span id="todayModalTitle">今日课程</span>
+        <button class="icon-btn close-btn" data-close="todayModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="today-list" id="todayList"></div>
+      </div>
+      <div class="modal-footer">
+        <span class="flex-sp"></span>
+        <button class="primary-btn" data-close="todayModal">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="js/storage.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "wakeup-schedule-local",
+  "version": "1.0.0",
+  "description": "WakeUp课程表 本地还原版 - 无广告无会员，数据完全本地",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "serve": "npx serve src"
+  },
+  "author": "CAMPUSER",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.4.11"
+  }
+}

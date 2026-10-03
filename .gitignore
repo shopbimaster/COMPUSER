@@ -1,0 +1,20 @@
+# ---- 依赖与构建产物 ----
+node_modules/
+dist/
+build/
+*.log
+
+# ---- 运行时数据（课表数据与 Electron 便携配置，均属本地状态）----
+data/
+.electron-cache/
+
+# ---- 原版参考代码（仅本地行为参考，不入库：原仓库无开源许可）----
+_reference/
+
+# ---- 系统与编辑器 ----
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+.idea/
+.vscode/
