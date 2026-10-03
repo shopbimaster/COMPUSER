@@ -32,8 +32,23 @@
 
     <div class="actions">
       <button class="text-btn" id="btnTodayCourses">今日课程</button>
-      <button class="text-btn" id="btnImport">导入</button>
-      <button class="text-btn" id="btnExport">导出</button>
+      <div class="menu-wrap">
+        <button class="text-btn" id="btnImport">导入 ▾</button>
+        <div class="dropdown" id="importMenu" hidden>
+          <button data-act="file">从文件导入…</button>
+          <button data-act="code">从文本口令导入…</button>
+        </div>
+      </div>
+      <div class="menu-wrap">
+        <button class="text-btn" id="btnExport">导出 ▾</button>
+        <div class="dropdown" id="exportMenu" hidden>
+          <button data-act="backup">完整备份 (.json)</button>
+          <button data-act="share-file">分享当前课表 (.json)</button>
+          <button data-act="csv">课程表 CSV (.csv)</button>
+          <button data-act="ics">日历文件 (.ics)</button>
+          <button data-act="qr">QR 码 / 文本口令…</button>
+        </div>
+      </div>
       <button class="text-btn" id="btnSettings">设置</button>
       <button class="primary-btn" id="btnAdd">＋ 添加课程</button>
     </div>
@@ -226,13 +241,84 @@
     </div>
   </div>
 
+  <!-- QR 分享弹窗 -->
+  <div class="modal-overlay" id="qrModal" hidden>
+    <div class="modal sm">
+      <div class="modal-header">
+        <span>分享课表：QR 码 / 口令</span>
+        <button class="icon-btn close-btn" data-close="qrModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="qr-box" id="qrBox"></div>
+        <div class="qr-tip" id="qrTip"></div>
+        <label class="field-label">文本口令（复制发给对方，或由对方「导入 ▾ → 从文本口令导入」粘贴）</label>
+        <textarea id="shareCode" readonly rows="4"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="text-btn" id="btnCopyCode">复制口令</button>
+        <button class="text-btn" id="btnSaveShareFile">保存为文件</button>
+        <span class="flex-sp"></span>
+        <button class="primary-btn" data-close="qrModal">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 口令导入弹窗 -->
+  <div class="modal-overlay" id="codeImportModal" hidden>
+    <div class="modal sm">
+      <div class="modal-header">
+        <span>从文本口令导入</span>
+        <button class="icon-btn close-btn" data-close="codeImportModal">×</button>
+      </div>
+      <div class="modal-body">
+        <label class="field-label">粘贴以 WU1: 或 WU0: 开头的口令，将作为新课表导入</label>
+        <textarea id="codeInput" rows="5" placeholder="WU1:…"></textarea>
+      </div>
+      <div class="modal-footer">
+        <span class="flex-sp"></span>
+        <button class="text-btn" data-close="codeImportModal">取消</button>
+        <button class="primary-btn" id="btnImportCode">导入</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 导入方式选择弹窗（完整备份） -->
+  <div class="modal-overlay" id="importChoiceModal" hidden>
+    <div class="modal sm">
+      <div class="modal-header">
+        <span>导入课表</span>
+        <button class="icon-btn close-btn" data-close="importChoiceModal">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="import-summary" id="importSummary"></div>
+        <label class="switch-label choice-row">
+          <input type="radio" name="importMode" value="new" checked>
+          作为新课表导入（不影响现有数据）
+        </label>
+        <label class="switch-label choice-row">
+          <input type="radio" name="importMode" value="merge">
+          合并到现有数据（LWW：双方较新的修改都会保留）
+        </label>
+      </div>
+      <div class="modal-footer">
+        <span class="flex-sp"></span>
+        <button class="text-btn" data-close="importChoiceModal">取消</button>
+        <button class="primary-btn" id="btnConfirmImport">导入</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast" hidden></div>
 
+  <script src="vendor/qrcode-generator.js"></script>
   <script src="../core/week.js"></script>
   <script src="../core/conflict.js"></script>
   <script src="../core/model.js"></script>
   <script src="../core/merge.js"></script>
   <script src="../core/codec/backup.js"></script>
+  <script src="../core/codec/share.js"></script>
+  <script src="../core/codec/csv.js"></script>
+  <script src="../core/codec/ics.js"></script>
   <script src="../adapters/electron-bridge.js"></script>
   <script src="../adapters/browser-bridge.js"></script>
   <script src="js/app.js"></script>

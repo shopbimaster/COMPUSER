@@ -12,6 +12,7 @@ const GAP = 4; // 节次间距（对应原版 marTop）
 
 // ---------- 内核与端口 ----------
 const M = WakeupModel, W = WakeupWeek, C = WakeupConflict, Mrg = WakeupMerge, Bk = WakeupBackupCodec;
+const Share = WakeupShareCodec, Csv = WakeupCsvCodec, Ics = WakeupIcsCodec;
 const { parseDate, fmtDate, addDays, mondayIndex, toMinutes: toMin, addMinutes } = W;
 const Ports = window.__ports;
 
@@ -877,38 +878,103 @@ function openTodayModal() {
   openModal('todayModal');
 }
 
-// ---------- 导入 / 导出（C4 过渡实现：备份 + 合并；C5 扩展分享/QR） ----------
+// ---------- 分享与导入导出（文件 / QR / 口令，全离线） ----------
 function dateStamp() {
   const d = new Date();
   return `${d.getFullYear()}${W.pad2(d.getMonth() + 1)}${W.pad2(d.getDate())}`;
 }
+function fileNameSafe(name) { return String(name).replace(/[\\/:*?"<>|]/g, '_').slice(0, 40) || 'schedule'; }
 
-async function doExport() {
-  const where = await Ports.share.send(Bk.serialize(state), `wakeup-backup-${dateStamp()}.json`);
+function toggleMenu(id) {
+  const menu = $(id);
+  const willOpen = menu.hidden;
+  document.querySelectorAll('.dropdown').forEach(d => { d.hidden = true; });
+  menu.hidden = !willOpen;
+}
+
+async function doExportAction(act) {
+  const sch = currentSchedule();
+  const base = fileNameSafe(sch.name);
+  let where = null;
+  if (act === 'backup') {
+    where = await Ports.share.send(Bk.serialize(state), `wakeup-backup-${dateStamp()}.json`);
+  } else if (act === 'share-file') {
+    where = await Ports.share.send(Bk.serializeShare(sch), `wakeup-share-${base}.json`);
+  } else if (act === 'csv') {
+    where = await Ports.share.send(Csv.toCsv(sch), `wakeup-${base}-${dateStamp()}.csv`);
+  } else if (act === 'ics') {
+    where = await Ports.share.send(Ics.toIcs(sch), `wakeup-${base}-${dateStamp()}.ics`);
+  } else if (act === 'qr') {
+    await openQrModal();
+    return;
+  }
   if (where) showToast(`已导出到 ${where}`);
 }
 
-async function doImport() {
+async function openQrModal() {
+  const r = await Share.encodeShare(currentSchedule());
+  if (r.error) { showToast(r.error); return; }
+  $('shareCode').value = r.code;
+  const box = $('qrBox');
+  box.innerHTML = '';
+  if (typeof qrcode === 'undefined') {
+    box.innerHTML = '<div class="qr-too-big">二维码组件未加载（vendor/qrcode-generator.js）<br>仍可使用下方口令或文件方式分享</div>';
+    $('qrTip').textContent = '';
+  } else {
+    try {
+      const qr = qrcode(0, 'M');
+      qr.addData(r.code);
+      qr.make();
+      box.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+      $('qrTip').textContent = '对方扫码后按提示操作，或将口令粘贴到「导入 ▾ → 从文本口令导入」';
+    } catch (e) {
+      box.innerHTML = '<div class="qr-too-big">口令过长，无法生成二维码<br>请使用下方口令或文件方式分享</div>';
+      $('qrTip').textContent = '';
+    }
+  }
+  openModal('qrModal');
+}
+
+let pendingImportState = null;
+
+async function doImportAction(act) {
+  if (act === 'code') {
+    $('codeInput').value = '';
+    openModal('codeImportModal');
+    return;
+  }
   const r = await Ports.share.receive();
   if (!r) return;
   if (r.error) { showToast('导入失败：无法读取文件'); return; }
-  const parsed = Bk.parseAuto(r.text);
-  if (parsed.error) { showToast('导入失败：' + parsed.error); return; }
+  await handleImportText(r.text, r.name);
+}
 
+async function handleImportText(text, name) {
+  // CSV → 课程导入当前课表
+  if (/\.csv$/i.test(name || '')) {
+    const r = Csv.parseCsv(text);
+    if (r.error) { showToast('导入失败：' + r.error); return; }
+    const sch = currentSchedule();
+    for (const c of r.courses) sch.courses.push(c);
+    touchSchedule();
+    await persist();
+    render();
+    showToast(`已导入 ${r.courses.length} 门课程` + (r.skipped ? `（跳过 ${r.skipped} 行无效数据）` : ''));
+    return;
+  }
+
+  const parsed = Bk.parseAuto(text);
+  if (parsed.error) { showToast('导入失败：' + parsed.error); return; }
   if (parsed.kind === 'share') {
     importAsNewSchedules([parsed.schedule]);
     return;
   }
-  // 完整备份 → LWW 合并（非破坏性）
+  // 完整备份 → 选择导入方式
   const n = parsed.state.schedules.reduce((a, s) => a + s.courses.length, 0);
-  if (!confirm(`识别到备份：${parsed.state.schedules.length} 个课表 / ${n} 门课程。\n将与现有数据合并（双方较新的修改保留），继续吗？`)) return;
-  state = Mrg.mergeState(state, parsed.state);
-  await persist();
-  buildScheduleSelect();
-  buildWeekSelect();
-  render();
-  renderTodayInfo();
-  showToast('合并导入完成');
+  $('importSummary').innerHTML =
+    `<b>${escapeHtml(name || '备份文件')}</b><br>${parsed.state.schedules.length} 个课表 / ${n} 门课程`;
+  pendingImportState = parsed.state;
+  openModal('importChoiceModal');
 }
 
 function importAsNewSchedules(list) {
@@ -933,6 +999,25 @@ function importAsNewSchedules(list) {
   showToast(`已导入 ${list.length} 个课表`);
 }
 
+async function confirmImportChoice() {
+  if (!pendingImportState) return;
+  const mode = (document.querySelector('input[name="importMode"]:checked') || {}).value || 'new';
+  closeModal('importChoiceModal');
+  const incoming = pendingImportState;
+  pendingImportState = null;
+  if (mode === 'merge') {
+    state = Mrg.mergeState(state, incoming);
+    await persist();
+    buildScheduleSelect();
+    buildWeekSelect();
+    render();
+    renderTodayInfo();
+    showToast('合并导入完成（双方较新的修改均已保留）');
+  } else {
+    importAsNewSchedules(incoming.schedules);
+  }
+}
+
 // ---------- 事件绑定 ----------
 function bindEvents() {
   $('prevWeek').onclick = () => setViewWeek(viewWeek - 1);
@@ -944,8 +1029,50 @@ function bindEvents() {
   $('fabAdd').onclick = () => openCourseModal('add', null, null);
   $('btnSettings').onclick = openSettings;
   $('btnTodayCourses').onclick = openTodayModal;
-  $('btnImport').onclick = doImport;
-  $('btnExport').onclick = doExport;
+
+  // 导入/导出菜单
+  $('btnExport').onclick = (e) => { e.stopPropagation(); toggleMenu('exportMenu'); };
+  $('btnImport').onclick = (e) => { e.stopPropagation(); toggleMenu('importMenu'); };
+  $('exportMenu').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-act]');
+    if (!b) return;
+    $('exportMenu').hidden = true;
+    doExportAction(b.dataset.act);
+  });
+  $('importMenu').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-act]');
+    if (!b) return;
+    $('importMenu').hidden = true;
+    doImportAction(b.dataset.act);
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.menu-wrap')) {
+      document.querySelectorAll('.dropdown').forEach(d => { d.hidden = true; });
+    }
+  });
+
+  // QR / 口令 / 导入选择
+  $('btnCopyCode').onclick = async () => {
+    const code = $('shareCode').value;
+    if (!code) return;
+    try { await navigator.clipboard.writeText(code); }
+    catch (e) { $('shareCode').select(); document.execCommand('copy'); }
+    showToast('口令已复制');
+  };
+  $('btnSaveShareFile').onclick = async () => {
+    const sch = currentSchedule();
+    const where = await Ports.share.send(Bk.serializeShare(sch), `wakeup-share-${fileNameSafe(sch.name)}.json`);
+    if (where) showToast(`已导出到 ${where}`);
+  };
+  $('btnImportCode').onclick = async () => {
+    const code = $('codeInput').value.trim();
+    if (!code) { showToast('请粘贴口令'); return; }
+    const r = await Share.decodeShare(code);
+    if (r.error) { showToast('导入失败：' + r.error); return; }
+    closeModal('codeImportModal');
+    importAsNewSchedules([r.schedule]);
+  };
+  $('btnConfirmImport').onclick = confirmImportChoice;
 
   $('btnEditCourse').onclick = () => {
     if (courseModalMode === 'view') {
