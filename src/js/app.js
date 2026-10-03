@@ -42,22 +42,10 @@ let editingCourseId = null;
 
 // ---------- 工具 ----------
 const $ = (id) => document.getElementById(id);
-const pad2 = (n) => String(n).padStart(2, '0');
 
-function parseDate(str) {
-  const [y, m, d] = str.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
-function fmtDate(date) {
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
-}
-function addDays(date, n) {
-  const d = new Date(date);
-  d.setDate(d.getDate() + n);
-  return d;
-}
-// 周一=0 ... 周日=6
-function mondayIndex(date) { return (date.getDay() + 6) % 7; }
+// 领域内核别名：周次/日期/冲突纯函数已抽取至 core/，此处仅薄封装
+const { parseDate, fmtDate, addDays, mondayIndex, toMinutes: toMin, addMinutes } = WakeupWeek;
+const { slotInWeek: courseInWeek } = WakeupConflict;
 
 function toast(msg, ms = 2200) {
   const t = $('toast');
@@ -71,27 +59,10 @@ async function persist() {
   await Storage.save({ courses: state.courses, settings: state.settings });
 }
 
-// ---------- 周计算（还原原版 countWeek：天数差/7+1） ----------
-function weekAnchor() {
-  // 学期开始日期所在周的周一
-  return addDays(parseDate(state.settings.termStart), -mondayIndex(parseDate(state.settings.termStart)));
-}
-function calcCurrentWeek() {
-  const today = parseDate(fmtDate(new Date()));
-  const diff = Math.floor((today - weekAnchor()) / (7 * 24 * 3600 * 1000));
-  return diff + 1;
-}
-function weekStartDate(w) { return addDays(weekAnchor(), (w - 1) * 7); }
-function dayDate(w, day) { return addDays(weekStartDate(w), day - 1); }
-
-// ---------- 课程逻辑（还原原版 ScheduleFragment 判断） ----------
-// 返回 'yes' | 'no'
-function courseInWeek(c, w) {
-  if (c.startWeek > w || c.endWeek < w) return 'no';
-  if (c.isOdd === 1 && w % 2 === 0) return 'no'; // 单周课不在双周
-  if (c.isOdd === 2 && w % 2 === 1) return 'no'; // 双周课不在单周
-  return 'yes';
-}
+// ---------- 周计算（还原原版 countWeek：天数差/7+1，实现在 core/week.js） ----------
+function calcCurrentWeek() { return WakeupWeek.calcCurrentWeek(state.settings.termStart); }
+function weekStartDate(w) { return WakeupWeek.weekStartDate(state.settings.termStart, w); }
+function dayDate(w, day) { return WakeupWeek.dayDate(state.settings.termStart, w, day); }
 
 function effectiveColorIndex(c) {
   if (typeof c.color === 'number' && c.color >= 0 && c.color <= 9) return c.color;
@@ -210,8 +181,8 @@ function render() {
 
     for (const c of dayCourses) {
       const inWeek = courseInWeek(c, state.viewWeek);
-      if (inWeek === 'no' && !settings.showOtherWeek) continue;
-      col.appendChild(buildCourseBlock(c, inWeek === 'yes'));
+      if (!inWeek && !settings.showOtherWeek) continue;
+      col.appendChild(buildCourseBlock(c, inWeek));
     }
 
     col.addEventListener('dblclick', (e) => {
@@ -416,17 +387,9 @@ function readCourseForm() {
   };
 }
 
-// 冲突检测（软提示）
+// 冲突检测（软提示，实现在 core/conflict.js）
 function findConflict(c) {
-  return state.courses.find(o => {
-    if (o.id === c.id) return false;
-    if (o.day !== c.day) return false;
-    if (o.start > c.start + c.step - 1 || c.start > o.start + o.step - 1) return false;
-    for (let w = Math.max(o.startWeek, c.startWeek); w <= Math.min(o.endWeek, c.endWeek); w++) {
-      if (courseInWeek(o, w) === 'yes' && courseInWeek(c, w) === 'yes') return true;
-    }
-    return false;
-  });
+  return state.courses.find(o => o.id !== c.id && WakeupConflict.slotsConflict(o, c));
 }
 
 function saveCourseFromForm() {
@@ -548,11 +511,7 @@ function collectSettings() {
   return s;
 }
 
-function addMinutes(hhmm, min) {
-  const [h, m] = hhmm.split(':').map(Number);
-  let total = (h * 60 + m + min + 1440) % 1440;
-  return `${pad2(Math.floor(total / 60))}:${pad2(total % 60)}`;
-}
+// addMinutes 由 core/week.js 提供（别名引入）
 
 function saveSettings() {
   const s = collectSettings();
@@ -581,7 +540,7 @@ function openTodayModal() {
   $('todayModalTitle').textContent = `今日课程 · ${now.getMonth() + 1}月${now.getDate()}日 ${DAY_NAMES[todayDay]}`;
 
   const list = state.courses
-    .filter(c => c.day === todayDay && courseInWeek(c, curWeek) === 'yes')
+    .filter(c => c.day === todayDay && courseInWeek(c, curWeek))
     .sort((a, b) => a.start - b.start);
 
   const box = $('todayList');
@@ -610,7 +569,7 @@ function openTodayModal() {
   }
   openModal('todayModal');
 }
-function toMin(hhmm) { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; }
+// toMin 由 core/week.js 提供（toMinutes 别名）
 
 // ---------- 导入 / 导出 ----------
 async function doImport() {

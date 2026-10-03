@@ -5,6 +5,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "test": "node --test core/test/*.test.js",
     "serve": "npx serve src"
   },
   "author": "CAMPUSER",
