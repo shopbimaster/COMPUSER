@@ -34,6 +34,7 @@
     itemHeight: 56,         // 原版默认 56dp
     alpha: 100,             // 新版风格：实色课程块（可调半透明）
     showOtherWeek: true,
+    showWeekend: true,      // 关闭时仅显示周一~周五
     sundayFirst: false,
     sameLen: false,         // 每节课时长相同
     times: null
@@ -54,6 +55,7 @@
     s.totalWeeks = clamp(Number(s.totalWeeks) || 20, 1, 40);
     s.itemHeight = clamp(Number(s.itemHeight) || 56, 40, 90);
     s.alpha = clamp(Number(s.alpha) || 100, 10, 100);
+    s.showWeekend = s.showWeekend !== false && s.showWeekend !== 'false';
     if (!s.termStart || !/^\d{4}-\d{2}-\d{2}$/.test(String(s.termStart))) {
       const t = new Date();
       t.setDate(t.getDate() - ((t.getDay() + 6) % 7)); // 本周一

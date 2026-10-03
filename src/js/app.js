@@ -10,6 +10,17 @@ const DAY_NAMES = { 1: '周一', 2: '周二', 3: '周三', 4: '周四', 5: '周�
 const ODD_NAMES = ['每周', '单周', '双周'];
 const GAP = 4; // 节次间距（对应原版 marTop）
 
+// 极简线条图标（仿新版 WakeUp 的描边风格，随文字颜色）
+const svgIco = (paths, w = 15) =>
+  `<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+const ICONS = {
+  calendar: svgIco('<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/>'),
+  clock: svgIco('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'),
+  room: svgIco('<path d="M12 21s-6.5-5.3-6.5-10a6.5 6.5 0 1 1 13 0C18.5 15.7 12 21 12 21z"/><circle cx="12" cy="10.8" r="2.2"/>'),
+  teacher: svgIco('<circle cx="12" cy="8" r="3.4"/><path d="M5.5 20c.9-3.5 3.5-5.3 6.5-5.3s5.6 1.8 6.5 5.3"/>'),
+  note: svgIco('<path d="M5 4h9.5L19 8.5V20H5z"/><path d="M14 4v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/>')
+};
+
 // ---------- 内核与端口 ----------
 const M = WakeupModel, W = WakeupWeek, C = WakeupConflict, Mrg = WakeupMerge, Bk = WakeupBackupCodec;
 const Share = WakeupShareCodec, Csv = WakeupCsvCodec, Ics = WakeupIcsCodec;
@@ -90,9 +101,8 @@ function render() {
   const s = currentSettings();
   const todayStr = fmtDate(new Date());
   const days = dayOrder();
-  // 原版行为：周日列无任何课程时隐藏（仅当周日排最后）
-  const hasSundayCourse = currentSchedule().courses.some(c => c.timeSlots.some(t => t.day === 7));
-  const visibleDays = (!s.sundayFirst && !hasSundayCourse) ? days.filter(d => d !== 7) : days;
+  // 显示周末关闭 → 仅周一~周五；开启时周日按 sundayFirst 排首/尾
+  const visibleDays = s.showWeekend ? days : days.filter(d => d <= 5);
 
   const grid = $('grid');
   grid.style.setProperty('--day-count', visibleDays.length);
@@ -296,16 +306,16 @@ function renderCourseDetail(c, slot) {
     const inWeek = C.slotInWeek(sl, viewWeek);
     return `
     <div class="dt-slot-block">
-      <div class="dt-row"><span class="dt-ico">📅</span><span class="dt-txt">第${sl.startWeek} - ${sl.endWeek}周${sl.isOdd ? ' · ' + ODD_NAMES[sl.isOdd] : ''}${inWeek ? '' : '<div class="dt-sub">非本周</div>'}</span></div>
-      <div class="dt-row"><span class="dt-ico">⏰</span><span class="dt-txt">${DAY_NAMES[sl.day]} 第${sl.start} - ${sl.start + sl.step - 1}节<div class="dt-sub">${slotTimeText(sl).replace(' ~ ', ' - ')}</div></span></div>
-      ${sl.room ? `<div class="dt-row"><span class="dt-ico">🏫</span><span class="dt-txt">${escapeHtml(sl.room)}</span></div>` : ''}
-      ${sl.teach ? `<div class="dt-row"><span class="dt-ico">👤</span><span class="dt-txt">${escapeHtml(sl.teach)}</span></div>` : ''}
+      <div class="dt-row"><span class="dt-ico">${ICONS.calendar}</span><span class="dt-txt">第${sl.startWeek} - ${sl.endWeek}周${sl.isOdd ? ' · ' + ODD_NAMES[sl.isOdd] : ''}${inWeek ? '' : '<div class="dt-sub">非本周</div>'}</span></div>
+      <div class="dt-row"><span class="dt-ico">${ICONS.clock}</span><span class="dt-txt">${DAY_NAMES[sl.day]} 第${sl.start} - ${sl.start + sl.step - 1}节<div class="dt-sub">${slotTimeText(sl).replace(' ~ ', ' - ')}</div></span></div>
+      ${sl.room ? `<div class="dt-row"><span class="dt-ico">${ICONS.room}</span><span class="dt-txt">${escapeHtml(sl.room)}</span></div>` : ''}
+      ${sl.teach ? `<div class="dt-row"><span class="dt-ico">${ICONS.teacher}</span><span class="dt-txt">${escapeHtml(sl.teach)}</span></div>` : ''}
     </div>`;
   }).join('');
 
   const conflictHtml = conflicts.length ? `
     <div class="conflict-list">
-      <div class="conflict-title">⚠ 存在 ${conflicts.length} 处时间冲突</div>
+      <div class="conflict-title">${svgIco('<path d="M12 4L2.8 19.5h18.4L12 4z"/><path d="M12 10v4.2M12 17.2v.1"/>', 14)} 存在 ${conflicts.length} 处时间冲突</div>
       ${conflicts.map(p => {
         const o = p.a.course.id === c.id ? p.b : p.a;
         const os = p.a.course.id === c.id ? p.b.slot : p.a.slot;
@@ -320,7 +330,7 @@ function renderCourseDetail(c, slot) {
       ${c.credit ? `<span class="dt-credit">${c.credit} 学分</span>` : ''}
     </div>
     ${slotBlocks}
-    ${c.note ? `<div class="dt-row"><span class="dt-ico">📝</span><span class="dt-txt dt-note">${escapeHtml(c.note)}</span></div>` : ''}
+    ${c.note ? `<div class="dt-row"><span class="dt-ico">${ICONS.note}</span><span class="dt-txt dt-note">${escapeHtml(c.note)}</span></div>` : ''}
     ${conflictHtml}
   `;
 }
@@ -360,7 +370,7 @@ function slotCard(sl, idx) {
       <button type="button" class="slot-remove" title="删除此时间段">×</button>
     </div>
     <button type="button" class="slot-row-btn sf-week-btn">
-      <span class="sr-ico">📅</span><span class="sr-txt sf-week-label"></span>
+      <span class="sr-ico">${ICONS.calendar}</span><span class="sr-txt sf-week-label"></span>
       <span class="chev">›</span>
     </button>
     <div class="sr-hidden">
@@ -371,7 +381,7 @@ function slotCard(sl, idx) {
       <input type="date" class="sf-dt">
     </div>
     <button type="button" class="slot-row-btn sf-time-btn">
-      <span class="sr-ico">⏰</span><span class="sr-txt sf-time-label"></span>
+      <span class="sr-ico">${ICONS.clock}</span><span class="sr-txt sf-time-label"></span>
       <span class="chev">›</span>
     </button>
     <div class="sr-hidden">
@@ -387,8 +397,8 @@ function slotCard(sl, idx) {
         <input type="time" class="sf-cte" value="${sl.customTime ? sl.customTime.end : '09:40'}">
       </div>
     </div>
-    <div class="cf-row"><span class="cf-ico">👤</span><input type="text" class="sf-teach" maxlength="20" value="${escapeHtml(sl.teach)}" placeholder="授课老师（可不填）"></div>
-    <div class="cf-row"><span class="cf-ico">🏫</span><input type="text" class="sf-room" maxlength="30" value="${escapeHtml(sl.room)}" placeholder="教室（可不填）"></div>
+    <div class="cf-row"><span class="cf-ico">${ICONS.teacher}</span><input type="text" class="sf-teach" maxlength="20" value="${escapeHtml(sl.teach)}" placeholder="授课老师（可不填）"></div>
+    <div class="cf-row"><span class="cf-ico">${ICONS.room}</span><input type="text" class="sf-room" maxlength="30" value="${escapeHtml(sl.room)}" placeholder="教室（可不填）"></div>
   `;
   card.querySelector('.sf-week-btn').onclick = () => openWeekDlg(card);
   card.querySelector('.sf-time-btn').onclick = () => openTimeDlg(card);
@@ -860,6 +870,8 @@ function openSettings() {
   $('heightVal').textContent = s.itemHeight + 'px';
   $('s_theme').value = state.prefs.theme;
   $('s_showOtherWeek').checked = s.showOtherWeek;
+  $('s_showWeekend').checked = s.showWeekend;
+  $('rowSundayFirst').hidden = !s.showWeekend;
   $('s_sundayFirst').checked = s.sundayFirst;
   $('s_sameLen').checked = s.sameLen;
   $('s_lessonLen').disabled = !s.sameLen;
@@ -897,6 +909,7 @@ function collectSettings() {
   s.alpha = Number($('s_alpha').value);
   s.itemHeight = Number($('s_itemHeight').value);
   s.showOtherWeek = $('s_showOtherWeek').checked;
+  s.showWeekend = $('s_showWeekend').checked;
   s.sundayFirst = $('s_sundayFirst').checked;
   s.sameLen = $('s_sameLen').checked;
   s.times = cur.times.map(t => ({ ...t }));
@@ -1129,8 +1142,8 @@ async function confirmImportChoice() {
 // ---------- 事件绑定 ----------
 function bindEvents() {
   // 周切换：箭头 / 滑杆 / 键盘 / 触摸板
-  $('prevWeek').onclick = () => setViewWeek(viewWeek - 1);
-  $('nextWeek').onclick = () => setViewWeek(viewWeek + 1);
+  $('prevWeek').onclick = (e) => { e.stopPropagation(); setViewWeek(viewWeek - 1); };
+  $('nextWeek').onclick = (e) => { e.stopPropagation(); setViewWeek(viewWeek + 1); };
 
   // 顶栏：周数面板
   $('tbWeekBtn').onclick = () => { updateWeekUI(); openModal('weekPanel'); };
@@ -1278,6 +1291,9 @@ function bindEvents() {
     $('s_lessonLen').disabled = !e.target.checked;
     $('btnApplyLen').disabled = !e.target.checked;
     buildTimeTable();
+  };
+  $('s_showWeekend').onchange = (e) => {
+    $('rowSundayFirst').hidden = !e.target.checked;
   };
   $('btnApplyLen').onclick = () => {
     const len = Number($('s_lessonLen').value) || 45;
