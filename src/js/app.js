@@ -1,214 +1,182 @@
 // ============================================================
-// WakeUp 课程表 · 本地还原版
-// 功能与数据模型还原自 YZune/WakeUpSchedule 开源版（2017-2018）
-// - 课程字段: name/room/teach/day/start/step/startWeek/endWeek/isOdd/color
-// - isOdd: 0每周 1单周 2双周；颜色: 10 色按课程名首字取模或手动指定
-// - 本地运行，无广告，无网络请求，数据保存为本地 JSON
+// WakeUp 课程表 · 本地还原版 · UI 层（v2）
+// 仅负责渲染与交互：领域逻辑在 core/（model/week/conflict/merge/codec），
+// 平台能力经 Ports 端口注入（adapters/）。数据格式 wakeup-local/2。
 // ============================================================
 
 // ---------- 常量 ----------
 const COURSE_COLORS = ['#8af28d', '#00ff9d', '#ff6200', '#e7554e', '#4695ff', '#ca71ff', '#3daff1', '#5d5dff', '#80deea', '#2f88ff'];
 const DAY_NAMES = { 1: '周一', 2: '周二', 3: '周三', 4: '周四', 5: '周五', 6: '周六', 7: '周日' };
+const ODD_NAMES = ['每周', '单周', '双周'];
 const GAP = 4; // 节次间距（对应原版 marTop）
 
-const DEFAULT_TIMES = [
-  ['08:00', '08:50'], ['09:00', '09:50'], ['10:10', '11:00'], ['11:10', '12:00'],
-  ['13:30', '14:20'], ['14:30', '15:20'], ['15:40', '16:30'], ['16:40', '17:30'],
-  ['18:30', '19:20'], ['19:30', '20:20'], ['20:30', '21:20'], ['21:30', '22:20'],
-  ['22:30', '23:20'], ['23:30', '00:20'], ['00:30', '01:20'], ['01:30', '02:20']
-];
-
-const DEFAULT_SETTINGS = {
-  termStart: null,        // 学期开始日期 YYYY-MM-DD（首次运行默认本周一）
-  totalWeeks: 20,         // 学期周数
-  classNum: 11,           // 一天课程节数
-  itemHeight: 56,         // 课程块单节高度 px（原版默认 56dp）
-  alpha: 64,              // 颜色透明度 %（原版默认 64）
-  showOtherWeek: true,    // 显示非本周课程（灰色）
-  sundayFirst: false,     // 周日为第一天
-  theme: 'light',         // light / dark
-  sameLen: false,         // 每节课时长相同
-  times: null             // [{start,end}] 节次时间表
-};
-
-// ---------- 状态 ----------
-let state = {
-  courses: [],
-  settings: { ...DEFAULT_SETTINGS },
-  viewWeek: 1
-};
-let courseModalMode = 'view'; // view | edit | add
-let editingCourseId = null;
-
-// ---------- 工具 ----------
-const $ = (id) => document.getElementById(id);
-
-// 领域内核别名：周次/日期/冲突纯函数已抽取至 core/，此处仅薄封装
-const { parseDate, fmtDate, addDays, mondayIndex, toMinutes: toMin, addMinutes } = WakeupWeek;
-const { slotInWeek: courseInWeek } = WakeupConflict;
-
-// 端口：由适配器桥注入（Electron 桥优先，浏览器桥降级），UI 不再感知平台
+// ---------- 内核与端口 ----------
+const M = WakeupModel, W = WakeupWeek, C = WakeupConflict, Mrg = WakeupMerge, Bk = WakeupBackupCodec;
+const { parseDate, fmtDate, addDays, mondayIndex, toMinutes: toMin, addMinutes } = W;
 const Ports = window.__ports;
 
-function toast(msg, ms = 2200) {
+// ---------- 状态 ----------
+let state = null;            // v2 AppState（init 时加载/迁移）
+let viewWeek = 1;            // 当前查看周（UI 态）
+let courseModalMode = 'view';// view | edit | add
+let editingCourseId = null;
+let editingSlotId = null;    // 从具体课程块进入时的删除范围上下文
+let pickedColor = -1;
+
+// ---------- 小工具 ----------
+const $ = (id) => document.getElementById(id);
+
+function currentSchedule() {
+  return state.schedules.find(s => s.id === state.currentScheduleId) || state.schedules[0];
+}
+function currentSettings() { return currentSchedule().settings; }
+function findCourse(id) {
+  return currentSchedule().courses.find(c => c.id === id) || null;
+}
+function touchSchedule() {
+  currentSchedule().updatedAt = Date.now();
+  state.updatedAt = Date.now();
+}
+
+function showToast(msg, ms = 2200) {
   const t = $('toast');
   t.textContent = msg;
   t.hidden = false;
-  clearTimeout(toast._timer);
-  toast._timer = setTimeout(() => { t.hidden = true; }, ms);
+  clearTimeout(showToast._timer);
+  showToast._timer = setTimeout(() => { t.hidden = true; }, ms);
 }
 
-async function persist() {
-  await Ports.storage.save(JSON.stringify({ courses: state.courses, settings: state.settings }));
-}
+async function persist() { await Ports.storage.save(Bk.serialize(state)); }
 
-// ---------- 周计算（还原原版 countWeek：天数差/7+1，实现在 core/week.js） ----------
-function calcCurrentWeek() { return WakeupWeek.calcCurrentWeek(state.settings.termStart); }
-function weekStartDate(w) { return WakeupWeek.weekStartDate(state.settings.termStart, w); }
-function dayDate(w, day) { return WakeupWeek.dayDate(state.settings.termStart, w, day); }
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+}
 
 function effectiveColorIndex(c) {
   if (typeof c.color === 'number' && c.color >= 0 && c.color <= 9) return c.color;
-  if (typeof c.color === 'string' && c.color !== '' && !isNaN(Number(c.color))) return Number(c.color) % 10;
-  // 原版逻辑：课程名首字符 % 10
   const code = c.name ? c.name.charCodeAt(0) : NaN;
-  return isNaN(code) ? 9 : code % 10;
+  return isNaN(code) ? 9 : code % 10; // 原版逻辑：课程名首字 %10
 }
 
 function hexToRgb(hex) {
   return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
 }
-// 计算课程块样式：半透明颜色叠在卡片底色上，文字颜色按混合亮度自动取黑/白
+// 课程块样式：半透明色叠卡片底色，按混合亮度自动取黑/白文字
 function courseBlockStyle(c) {
-  const color = COURSE_COLORS[effectiveColorIndex(c)];
-  const [r, g, b] = hexToRgb(color);
-  const card = state.settings.theme === 'dark' ? [42, 47, 52] : [255, 255, 255];
-  const a = state.settings.alpha / 100;
-  // 课程的最终视觉颜色 = 课程色按透明度混合卡片底色（用于判断文字对比度）
+  const [r, g, b] = hexToRgb(COURSE_COLORS[effectiveColorIndex(c)]);
+  const card = state.prefs.theme === 'dark' ? [42, 47, 52] : [255, 255, 255];
+  const a = currentSettings().alpha / 100;
   const blend = [r, g, b].map((ch, i) => Math.round(ch * a + card[i] * (1 - a)));
   const lum = 0.299 * blend[0] + 0.587 * blend[1] + 0.114 * blend[2];
-  return {
-    bg: `rgba(${r}, ${g}, ${b}, ${a})`,
-    text: lum > 165 ? '#20242a' : '#ffffff'
-  };
+  return { bg: `rgba(${r}, ${g}, ${b}, ${a})`, text: lum > 165 ? '#20242a' : '#ffffff' };
 }
 
-function normalizeCourse(raw) {
-  return {
-    id: raw.id != null ? raw.id : 'c' + Date.now() + Math.random().toString(36).slice(2, 7),
-    name: String(raw.name || '').trim(),
-    room: String(raw.room || '').trim(),
-    teach: String(raw.teach || '').trim(),
-    day: Math.min(7, Math.max(1, Number(raw.day) || 1)),
-    start: Math.max(1, Number(raw.start) || 1),
-    step: Math.max(1, Number(raw.step) || 1),
-    startWeek: Math.max(1, Number(raw.startWeek) || 1),
-    endWeek: Math.max(1, Number(raw.endWeek) || 1),
-    isOdd: [0, 1, 2].includes(Number(raw.isOdd)) ? Number(raw.isOdd) : 0,
-    color: (raw.color === undefined || raw.color === null || raw.color === '' || raw.color < 0) ? -1 : Number(raw.color)
-  };
+// 展开为渲染条目：{course, slot}
+function allEntries() {
+  return currentSchedule().courses.flatMap(c => c.timeSlots.map(t => ({ course: c, slot: t })));
 }
 
-function normalizeSettings(raw) {
-  const s = { ...DEFAULT_SETTINGS, ...(raw || {}) };
-  const n = Math.min(16, Math.max(8, Number(s.classNum) || 11));
-  s.classNum = n;
-  s.totalWeeks = Math.min(40, Math.max(1, Number(s.totalWeeks) || 20));
-  s.itemHeight = Math.min(90, Math.max(40, Number(s.itemHeight) || 56));
-  s.alpha = Math.min(100, Math.max(10, Number(s.alpha) || 64));
-  if (!s.termStart) {
-    const now = new Date();
-    s.termStart = fmtDate(addDays(now, -mondayIndex(now)));
-  }
-  if (!Array.isArray(s.times)) s.times = [];
-  for (let i = 0; i < n; i++) {
-    if (!s.times[i]) s.times[i] = { start: DEFAULT_TIMES[i][0], end: DEFAULT_TIMES[i][1] };
-  }
-  s.times = s.times.slice(0, n);
-  return s;
-}
+// ---------- 周计算（薄封装到当前课表） ----------
+function calcCurrentWeek() { return W.calcCurrentWeek(currentSettings().termStart); }
+function dayDate(w, day) { return W.dayDate(currentSettings().termStart, w, day); }
 
 // ---------- 渲染 ----------
 function dayOrder() {
-  return state.settings.sundayFirst ? [7, 1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5, 6, 7];
+  return currentSettings().sundayFirst ? [7, 1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5, 6, 7];
 }
 
 function render() {
-  const { settings } = state;
+  const s = currentSettings();
   const todayStr = fmtDate(new Date());
   const days = dayOrder();
   // 原版行为：周日列无任何课程时隐藏（仅当周日排最后）
-  const hasSundayCourse = state.courses.some(c => c.day === 7);
-  const visibleDays = (!settings.sundayFirst && !hasSundayCourse) ? days.filter(d => d !== 7) : days;
+  const hasSundayCourse = currentSchedule().courses.some(c => c.timeSlots.some(t => t.day === 7));
+  const visibleDays = (!s.sundayFirst && !hasSundayCourse) ? days.filter(d => d !== 7) : days;
 
   const grid = $('grid');
   grid.style.setProperty('--day-count', visibleDays.length);
-  grid.style.setProperty('--unit', settings.itemHeight + 'px');
+  grid.style.setProperty('--unit', s.itemHeight + 'px');
   grid.innerHTML = '';
 
-  // 表头：角标 + 星期
   const corner = document.createElement('div');
   corner.className = 'grid-corner';
   corner.textContent = '节次';
   grid.appendChild(corner);
 
   for (const d of visibleDays) {
-    const date = dayDate(state.viewWeek, d);
+    const date = dayDate(viewWeek, d);
     const h = document.createElement('div');
     h.className = 'day-header' + (fmtDate(date) === todayStr ? ' is-today' : '');
     h.innerHTML = `<span class="day-name">${DAY_NAMES[d]}</span><span class="day-date">${date.getMonth() + 1}/${date.getDate()}</span>`;
     grid.appendChild(h);
   }
 
-  // 左侧节次列
   const timeCol = document.createElement('div');
   timeCol.className = 'time-col';
-  for (let i = 1; i <= settings.classNum; i++) {
+  for (let i = 1; i <= s.classNum; i++) {
     const sec = document.createElement('div');
     sec.className = 'sec';
-    sec.style.top = ((i - 1) * (settings.itemHeight + GAP) + GAP) + 'px';
-    sec.innerHTML = `<span class="sec-no">${i}</span><span class="sec-time">${settings.times[i - 1].start}</span>`;
+    sec.style.top = ((i - 1) * (s.itemHeight + GAP) + GAP) + 'px';
+    sec.innerHTML = `<span class="sec-no">${i}</span><span class="sec-time">${s.times[i - 1].start}</span>`;
     timeCol.appendChild(sec);
   }
   grid.appendChild(timeCol);
 
-  // 课程列
   for (const d of visibleDays) {
     const col = document.createElement('div');
     col.className = 'day-col';
     col.dataset.day = d;
 
-    const dayCourses = state.courses
-      .filter(c => c.day === d)
-      .sort((a, b) => a.start - b.start || a.startWeek - b.startWeek);
+    const dayEntries = allEntries()
+      .filter(e => e.slot.day === d)
+      .sort((a, b) => entryStartMin(a) - entryStartMin(b));
 
-    for (const c of dayCourses) {
-      const inWeek = courseInWeek(c, state.viewWeek);
-      if (!inWeek && !settings.showOtherWeek) continue;
-      col.appendChild(buildCourseBlock(c, inWeek));
+    for (const e of dayEntries) {
+      const inWeek = C.slotInWeek(e.slot, viewWeek);
+      if (!inWeek && !s.showOtherWeek) continue;
+      col.appendChild(buildCourseBlock(e, inWeek));
     }
 
-    col.addEventListener('dblclick', (e) => {
+    col.addEventListener('dblclick', (ev) => {
       const rect = col.getBoundingClientRect();
-      const y = e.clientY - rect.top - GAP;
-      const sec = Math.max(1, Math.min(settings.classNum, Math.floor(y / (settings.itemHeight + GAP)) + 1));
-      openCourseModal('add', null, { day: d, start: sec });
+      const y = ev.clientY - rect.top - GAP;
+      const sec = Math.max(1, Math.min(s.classNum, Math.floor(y / (s.itemHeight + GAP)) + 1));
+      openCourseModal('add', null, null, { day: d, start: sec });
     });
 
     grid.appendChild(col);
   }
 
-  // 空状态
-  $('emptyTip').hidden = state.courses.length !== 0;
+  $('emptyTip').hidden = currentSchedule().courses.length !== 0;
   renderWeekLabel();
 }
 
-function buildCourseBlock(c, isCurrent) {
-  const { settings } = state;
+// 排序用：条目开始分钟数（自定义时间优先，否则按节次时间）
+function entryStartMin(e) {
+  const s = currentSettings();
+  if (e.slot.customTime) return toMin(e.slot.customTime.start);
+  return toMin(s.times[Math.min(e.slot.start, s.classNum) - 1].start);
+}
+
+function buildCourseBlock(e, isCurrent) {
+  const s = currentSettings();
+  const { course: c, slot: sl } = e;
   const el = document.createElement('div');
   el.className = 'course-block' + (isCurrent ? '' : ' other-week');
-  const top = (c.start - 1) * (settings.itemHeight + GAP) + GAP;
-  const height = c.step * settings.itemHeight + (c.step - 1) * GAP;
+
+  let top, height;
+  if (sl.customTime) {
+    // 还原原版"自定义时间课程按比例显示"
+    const dayStart = toMin(s.times[0].start);
+    const dayEnd = toMin(s.times[s.classNum - 1].end);
+    const span = Math.max(1, dayEnd - dayStart);
+    const totalH = s.classNum * s.itemHeight + (s.classNum - 1) * GAP;
+    top = Math.max(0, (toMin(sl.customTime.start) - dayStart) / span * totalH);
+    height = Math.max(14, (toMin(sl.customTime.end) - toMin(sl.customTime.start)) / span * totalH);
+  } else {
+    top = (sl.start - 1) * (s.itemHeight + GAP) + GAP;
+    height = sl.step * s.itemHeight + (sl.step - 1) * GAP;
+  }
   el.style.top = top + 'px';
   el.style.height = height + 'px';
 
@@ -217,25 +185,22 @@ function buildCourseBlock(c, isCurrent) {
   el.style.color = style.text;
 
   let html = `<div class="course-name">${escapeHtml(c.name)}</div>`;
-  if (c.room) html += `<div class="course-room">@${escapeHtml(c.room)}</div>`;
-  if (c.isOdd === 1) html += `<div class="course-tag">单周</div>`;
-  if (c.isOdd === 2) html += `<div class="course-tag">双周</div>`;
+  if (sl.room) html += `<div class="course-room">@${escapeHtml(sl.room)}</div>`;
+  if (sl.isOdd === 1) html += `<div class="course-tag">单周</div>`;
+  if (sl.isOdd === 2) html += `<div class="course-tag">双周</div>`;
+  if (sl.customTime) html += `<div class="course-tag">${sl.customTime.start}~${sl.customTime.end}</div>`;
   el.innerHTML = html;
 
-  el.title = `${c.name} ${c.room ? '@' + c.room : ''} ${c.teach ? c.teach + ' 老师' : ''}`.trim();
-  el.addEventListener('click', () => openCourseModal('view', c));
+  el.title = `${c.name} ${sl.room ? '@' + sl.room : ''} ${sl.teach ? sl.teach + ' 老师' : ''}`.trim();
+  el.addEventListener('click', () => openCourseModal('view', c, sl));
   return el;
-}
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
 
 function renderWeekLabel() {
   const cur = calcCurrentWeek();
   const label = $('weekLabel');
-  label.textContent = `第 ${state.viewWeek} 周`;
-  label.classList.toggle('is-current', state.viewWeek === cur);
+  label.textContent = `第 ${viewWeek} 周`;
+  label.classList.toggle('is-current', viewWeek === cur);
 }
 
 function renderTodayInfo() {
@@ -244,54 +209,56 @@ function renderTodayInfo() {
   const cur = calcCurrentWeek();
   let weekTxt = `第 ${cur} 周`;
   if (cur < 1) weekTxt = '未开学';
-  if (cur > state.settings.totalWeeks) weekTxt = '学期已结束';
+  if (cur > currentSettings().totalWeeks) weekTxt = '学期已结束';
   $('todayInfo').textContent = `${now.getMonth() + 1}月${now.getDate()}日 ${wd} · ${weekTxt}`;
 }
 
 function buildWeekSelect() {
   const sel = $('weekSelect');
   sel.innerHTML = '';
-  for (let w = 1; w <= state.settings.totalWeeks; w++) {
+  for (let w = 1; w <= currentSettings().totalWeeks; w++) {
     const o = document.createElement('option');
     o.value = w;
     o.textContent = `第${w}周`;
     sel.appendChild(o);
   }
-  sel.value = state.viewWeek;
+  sel.value = viewWeek;
 }
 
 function setViewWeek(w) {
-  state.viewWeek = Math.min(state.settings.totalWeeks, Math.max(1, w));
-  $('weekSelect').value = state.viewWeek;
+  viewWeek = Math.min(currentSettings().totalWeeks, Math.max(1, w));
+  $('weekSelect').value = viewWeek;
   render();
 }
 
 // ---------- 课程弹窗（详情 / 编辑 / 添加） ----------
-function openCourseModal(mode, course, preset = {}) {
+function openCourseModal(mode, course, slot, preset = {}) {
   courseModalMode = mode;
   editingCourseId = course ? course.id : null;
+  editingSlotId = slot ? slot.id : null;
 
   $('courseModalTitle').textContent = mode === 'add' ? '添加课程' : (mode === 'edit' ? '修改课程' : '课程详情');
   $('btnEditCourse').textContent = mode === 'edit' ? '保存修改' : (mode === 'add' ? '添加' : '修改');
   $('btnDeleteCourse').hidden = mode === 'add';
   $('btnDeleteCourse').textContent = '删除';
   $('btnDeleteCourse').classList.remove('confirm');
+  $('deleteScopeArea').hidden = true;
   deleteArmed = false;
   $('formTip').textContent = '';
 
-  const c = course || normalizeCourse({
-    name: '', room: '', teach: '',
-    day: preset.day || 1,
-    start: preset.start || 1, step: 1,
-    startWeek: 1, endWeek: state.settings.totalWeeks,
-    isOdd: 0, color: -1
+  const c = course || M.normalizeCourse({
+    name: '',
+    timeSlots: [{
+      day: preset.day || 1,
+      start: preset.start || 1, step: 1,
+      startWeek: 1, endWeek: currentSettings().totalWeeks
+    }]
   });
 
-  // 详情视图
   if (mode === 'view') {
     $('courseDetail').hidden = false;
     $('courseForm').hidden = true;
-    renderCourseDetail(c);
+    renderCourseDetail(c, slot);
   } else {
     $('courseDetail').hidden = true;
     $('courseForm').hidden = false;
@@ -300,52 +267,339 @@ function openCourseModal(mode, course, preset = {}) {
   openModal('courseModal');
 }
 
-function renderCourseDetail(c) {
-  const s = state.settings;
-  const endSec = c.start + c.step - 1;
-  const oddTxt = ['每周', '单周', '双周'][c.isOdd];
-  const t1 = s.times[Math.min(c.start, s.classNum) - 1] || { start: '--:--', end: '--:--' };
-  const t2 = s.times[Math.min(endSec, s.classNum) - 1] || { start: '--:--', end: '--:--' };
+function slotTimeText(sl) {
+  const s = currentSettings();
+  if (sl.customTime) return `${sl.customTime.start} ~ ${sl.customTime.end}`;
+  const t1 = s.times[Math.min(sl.start, s.classNum) - 1] || { start: '--:--' };
+  const t2 = s.times[Math.min(sl.start + sl.step - 1, s.classNum) - 1] || { end: '--:--' };
+  return `${t1.start} ~ ${t2.end}`;
+}
+
+function renderCourseDetail(c, slot) {
   const color = COURSE_COLORS[effectiveColorIndex(c)];
+  const conflicts = C.conflictsOf(allEntries(), c.id, slot ? slot.id : null);
+
+  const slotLines = c.timeSlots.map(sl => `
+    <div class="slot-line">
+      <span class="sl-when">${DAY_NAMES[sl.day]} 第${sl.start}~${sl.start + sl.step - 1}节</span>
+      <span class="sl-weeks">第${sl.startWeek}~${sl.endWeek}周 · ${ODD_NAMES[sl.isOdd]}</span>
+      <span class="sl-time">${slotTimeText(sl)}</span>
+      ${sl.room ? `<span class="sl-room">@${escapeHtml(sl.room)}</span>` : ''}
+      ${sl.teach ? `<span class="sl-teach">${escapeHtml(sl.teach)}</span>` : ''}
+    </div>`).join('');
+
+  const conflictHtml = conflicts.length ? `
+    <div class="conflict-list">
+      <div class="conflict-title">⚠ 存在 ${conflicts.length} 处时间冲突</div>
+      ${conflicts.map(p => {
+        const o = p.a.course.id === c.id ? p.b : p.a;
+        const os = p.a.course.id === c.id ? p.b.slot : p.a.slot;
+        return `<div class="conflict-item">与《${escapeHtml(o.name)}》${DAY_NAMES[os.day]} 第${os.start}~${os.start + os.step - 1}节 重叠</div>`;
+      }).join('')}
+    </div>` : '';
+
   $('courseDetail').innerHTML = `
     <div class="detail-title">
       <span class="detail-color" style="background:${color}"></span>
       <span class="detail-name">${escapeHtml(c.name)}</span>
+      ${c.credit ? `<span class="detail-credit">${c.credit} 学分</span>` : ''}
     </div>
-    <div class="detail-grid">
-      <span class="k">教师</span><span>${escapeHtml(c.teach || '—')}</span>
-      <span class="k">教室</span><span>${escapeHtml(c.room || '—')}</span>
-      <span class="k">时间</span><span>${DAY_NAMES[c.day]} 第${c.start}~${endSec}节</span>
-      <span class="k">周次</span><span>第${c.startWeek}~${c.endWeek}周 · ${oddTxt}</span>
-    </div>
-    <div class="detail-time">🕐 ${t1.start} ~ ${t2.end}${c.step > 1 ? `（第${c.start}节 ${t1.start} 上课，第${endSec}节 ${t2.end} 下课）` : ''}</div>
+    ${c.note ? `<div class="detail-note">📝 ${escapeHtml(c.note)}</div>` : ''}
+    <div class="detail-slots">${slotLines}</div>
+    ${conflictHtml}
   `;
 }
 
 function fillCourseForm(c) {
-  const s = state.settings;
   $('f_name').value = c.name;
-  $('f_teach').value = c.teach;
-  $('f_room').value = c.room;
-  $('f_day').innerHTML = [1, 2, 3, 4, 5, 6, 7].map(d => `<option value="${d}">${DAY_NAMES[d]}</option>`).join('');
-  $('f_day').value = c.day;
-  $('f_odd').value = c.isOdd;
-  let opts = '';
-  for (let i = 1; i <= s.classNum; i++) {
-    opts += `<option value="${i}">第${i}节 ${s.times[i - 1].start}</option>`;
-  }
-  $('f_start').innerHTML = opts;
-  $('f_end').innerHTML = opts;
-  $('f_start').value = Math.min(c.start, s.classNum);
-  $('f_end').value = Math.min(c.start + c.step - 1, s.classNum);
-  $('f_startWeek').value = c.startWeek;
-  $('f_endWeek').value = Math.max(c.endWeek, c.startWeek);
-  $('f_startWeek').max = s.totalWeeks;
-  $('f_endWeek').max = s.totalWeeks;
+  $('f_credit').value = (c.credit === null || c.credit === undefined) ? '' : c.credit;
+  $('f_note').value = c.note || '';
   buildColorPick(typeof c.color === 'number' ? c.color : -1);
+  renderSlotCards(c.timeSlots);
 }
 
-let pickedColor = -1;
+// ---------- 时间段卡片 ----------
+function sectionOptions(sel) {
+  const s = currentSettings();
+  let html = '';
+  for (let i = 1; i <= s.classNum; i++) html += `<option value="${i}" ${i === sel ? 'selected' : ''}>第${i}节</option>`;
+  return html;
+}
+
+function renderSlotCards(slots) {
+  const box = $('slotList');
+  box.innerHTML = '';
+  slots.forEach((sl, i) => box.appendChild(slotCard(sl, i)));
+}
+
+function slotCard(sl, idx) {
+  const s = currentSettings();
+  const endSec = Math.min(sl.start + sl.step - 1, s.classNum);
+  const card = document.createElement('div');
+  card.className = 'slot-card';
+  card.dataset.mode = 'week';
+  card.innerHTML = `
+    <div class="slot-head">
+      <span>时间段 ${idx + 1}</span>
+      <button type="button" class="icon-btn slot-remove" title="删除此时间段">×</button>
+    </div>
+    <div class="form-row two-col">
+      <div><label>星期 <i>*</i></label>
+        <select class="sf-day">${[1, 2, 3, 4, 5, 6, 7].map(d => `<option value="${d}" ${d === sl.day ? 'selected' : ''}>${DAY_NAMES[d]}</option>`).join('')}</select>
+      </div>
+      <div><label>周类型</label>
+        <select class="sf-odd">${[0, 1, 2].map(v => `<option value="${v}" ${v === sl.isOdd ? 'selected' : ''}>${ODD_NAMES[v]}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="form-row two-col">
+      <div><label>节次 <i>*</i></label>
+        <div class="range-pick">
+          <select class="sf-start">${sectionOptions(Math.min(sl.start, s.classNum))}</select>
+          <span>~</span>
+          <select class="sf-end">${sectionOptions(Math.max(1, endSec))}</select>
+        </div>
+      </div>
+      <div><label>周次 <i>*</i></label>
+        <div class="range-tabs">
+          <button type="button" class="rt-btn active" data-mode="week">周次</button>
+          <button type="button" class="rt-btn" data-mode="date">日期</button>
+        </div>
+        <div class="range-pick mode-week">
+          <input type="number" class="sf-sw" min="1" max="${s.totalWeeks}" value="${sl.startWeek}">
+          <span>~</span>
+          <input type="number" class="sf-ew" min="1" max="${s.totalWeeks}" value="${Math.max(sl.endWeek, sl.startWeek)}">
+        </div>
+        <div class="range-pick mode-date" hidden>
+          <input type="date" class="sf-df">
+          <span>~</span>
+          <input type="date" class="sf-dt">
+        </div>
+      </div>
+    </div>
+    <div class="form-row two-col">
+      <div><label>教师</label><input type="text" class="sf-teach" maxlength="20" value="${escapeHtml(sl.teach)}"></div>
+      <div><label>教室</label><input type="text" class="sf-room" maxlength="30" value="${escapeHtml(sl.room)}"></div>
+    </div>
+    <div class="form-row inline">
+      <label class="switch-label"><input type="checkbox" class="sf-custom" ${sl.customTime ? 'checked' : ''}>自定义时间</label>
+      <div class="range-pick ct-times" ${sl.customTime ? '' : 'hidden'}>
+        <input type="time" class="sf-cts" value="${sl.customTime ? sl.customTime.start : '08:00'}">
+        <span>~</span>
+        <input type="time" class="sf-cte" value="${sl.customTime ? sl.customTime.end : '09:40'}">
+      </div>
+    </div>
+  `;
+  return card;
+}
+
+// 时间段列表事件（委托）
+function bindSlotListEvents() {
+  const box = $('slotList');
+  box.addEventListener('click', (e) => {
+    const rt = e.target.closest('.rt-btn');
+    if (rt) {
+      const card = rt.closest('.slot-card');
+      card.dataset.mode = rt.dataset.mode;
+      card.querySelectorAll('.rt-btn').forEach(b => b.classList.toggle('active', b === rt));
+      card.querySelector('.mode-week').hidden = rt.dataset.mode !== 'week';
+      card.querySelector('.mode-date').hidden = rt.dataset.mode !== 'date';
+      return;
+    }
+    if (e.target.closest('.slot-remove')) {
+      const cards = box.querySelectorAll('.slot-card');
+      if (cards.length <= 1) { showToast('至少保留一个时间段'); return; }
+      e.target.closest('.slot-card').remove();
+      renumberSlots();
+    }
+  });
+  box.addEventListener('change', (e) => {
+    if (e.target.classList.contains('sf-custom')) {
+      const card = e.target.closest('.slot-card');
+      card.querySelector('.ct-times').hidden = !e.target.checked;
+    }
+  });
+}
+
+function renumberSlots() {
+  document.querySelectorAll('#slotList .slot-card').forEach((card, i) => {
+    card.querySelector('.slot-head span').textContent = '时间段 ' + (i + 1);
+  });
+}
+
+function readCourseForm() {
+  const s = currentSettings();
+  const name = $('f_name').value.trim();
+  if (!name) return { err: '请填写课程名' };
+  const cards = [...document.querySelectorAll('#slotList .slot-card')];
+  if (!cards.length) return { err: '至少需要一个时间段' };
+
+  const slots = [];
+  for (const card of cards) {
+    const start = Number(card.querySelector('.sf-start').value);
+    const end = Number(card.querySelector('.sf-end').value);
+    if (!start || !end || start > end) return { err: '存在时间段节次不合法（结束节需不小于开始节）' };
+
+    let sw, ew;
+    if (card.dataset.mode === 'date') {
+      const df = card.querySelector('.sf-df').value;
+      const dt = card.querySelector('.sf-dt').value;
+      if (!df || !dt) return { err: '日期模式需填写起止日期' };
+      ({ startWeek: sw, endWeek: ew } = W.weeksFromDates(s.termStart, df, dt));
+    } else {
+      sw = Number(card.querySelector('.sf-sw').value);
+      ew = Number(card.querySelector('.sf-ew').value);
+      if (!sw || !ew || sw > ew) return { err: '存在时间段周次不合法（结束周需不小于开始周）' };
+    }
+
+    let customTime = null;
+    if (card.querySelector('.sf-custom').checked) {
+      const cts = card.querySelector('.sf-cts').value;
+      const cte = card.querySelector('.sf-cte').value;
+      if (!cts || !cte || cts >= cte) return { err: '自定义时间不合法（结束需晚于开始）' };
+      customTime = { start: cts, end: cte };
+    }
+
+    slots.push(M.normalizeSlot({
+      day: Number(card.querySelector('.sf-day').value),
+      start, step: end - start + 1,
+      startWeek: sw, endWeek: ew,
+      isOdd: Number(card.querySelector('.sf-odd').value),
+      room: card.querySelector('.sf-room').value.trim(),
+      teach: card.querySelector('.sf-teach').value.trim(),
+      customTime
+    }));
+  }
+
+  const credit = $('f_credit').value.trim();
+  const course = M.normalizeCourse({
+    id: editingCourseId,
+    updatedAt: Date.now(),
+    name,
+    color: pickedColor,
+    credit: credit === '' ? null : Number(credit),
+    note: $('f_note').value.trim(),
+    timeSlots: slots
+  });
+
+  // 冲突软提示（跨课程）
+  const others = currentSchedule().courses.filter(x => x.id !== course.id);
+  const entries = [
+    ...others.flatMap(o => o.timeSlots.map(t => ({ course: o, slot: t }))),
+    ...course.timeSlots.map(t => ({ course, slot: t }))
+  ];
+  const pair = C.findConflicts(entries).find(p =>
+    p.a.course.id === course.id || p.b.course.id === course.id);
+
+  return { course, conflict: pair ? (pair.a.course.id === course.id ? pair.b.course : pair.a.course) : null };
+}
+
+function saveCourseFromForm() {
+  const r = readCourseForm();
+  if (r.err) { $('formTip').textContent = r.err; return; }
+  if (r.conflict && !confirm(`与课程「${r.conflict.name}」时间冲突，仍要保存吗？`)) return;
+  const c = r.course;
+
+  if (courseModalMode === 'edit') {
+    const i = currentSchedule().courses.findIndex(x => x.id === editingCourseId);
+    if (i >= 0) currentSchedule().courses[i] = c;
+  } else {
+    currentSchedule().courses.push(c);
+  }
+  touchSchedule();
+  persist();
+  closeModal('courseModal');
+  render();
+  showToast(courseModalMode === 'edit' ? '修改成功' : '添加成功');
+}
+
+// ---------- 删除（还原原版"删除时询问时间范围" + 双重确认） ----------
+let deleteArmed = false;
+
+function removeCourse(id) {
+  const sch = currentSchedule();
+  sch.courses = sch.courses.filter(x => x.id !== id);
+  sch.tombstones[id] = Date.now(); // 墓碑：防止合并时被旧数据复活
+}
+
+function onDeleteClick() {
+  const c = findCourse(editingCourseId);
+  if (!c) return;
+  if (c.timeSlots.length > 1 && editingSlotId) {
+    // 多时间段且从具体块进入 → 展示范围选择（还原原版语义）
+    $('deleteScopeArea').hidden = false;
+    $('btnDeleteCourse').hidden = true;
+    return;
+  }
+  if (!deleteArmed) {
+    deleteArmed = true;
+    const btn = $('btnDeleteCourse');
+    btn.textContent = '再点一次确认删除';
+    btn.classList.add('confirm');
+    setTimeout(() => {
+      deleteArmed = false;
+      btn.textContent = '删除';
+      btn.classList.remove('confirm');
+    }, 3000);
+    return;
+  }
+  removeCourse(c.id);
+  touchSchedule();
+  persist();
+  closeModal('courseModal');
+  render();
+  showToast('删除成功');
+}
+
+function deleteSlot(armedBtn) {
+  const c = findCourse(editingCourseId);
+  if (!c) return;
+  if (c.timeSlots.length <= 1) { onDeleteWholeCourse(); return; }
+  c.timeSlots = c.timeSlots.filter(t => t.id !== editingSlotId);
+  c.updatedAt = Date.now();
+  touchSchedule();
+  persist();
+  closeModal('courseModal');
+  render();
+  showToast('已删除该时间段');
+}
+
+function onDeleteWholeCourse() {
+  removeCourse(editingCourseId);
+  touchSchedule();
+  persist();
+  closeModal('courseModal');
+  render();
+  showToast('删除成功');
+}
+
+// 范围按钮各自的双重确认
+function bindDeleteScopeButtons() {
+  const armConfirm = (btn, label, action) => {
+    let armed = false;
+    btn.onclick = () => {
+      if (!armed) {
+        armed = true;
+        btn.textContent = label;
+        btn.classList.add('confirm');
+        setTimeout(() => { armed = false; btn.textContent = btn.dataset.text; btn.classList.remove('confirm'); }, 3000);
+        return;
+      }
+      action();
+    };
+  };
+  const slotBtn = $('btnDeleteSlotOnly');
+  const courseBtn = $('btnDeleteWholeCourse');
+  slotBtn.dataset.text = '仅删除该时间段';
+  courseBtn.dataset.text = '删除整门课程';
+  armConfirm(slotBtn, '再点一次确认', deleteSlot);
+  armConfirm(courseBtn, '再点一次确认', onDeleteWholeCourse);
+  $('btnCancelDelete').onclick = () => {
+    $('deleteScopeArea').hidden = true;
+    $('btnDeleteCourse').hidden = false;
+  };
+}
+
+// ---------- 颜色选择 ----------
 function buildColorPick(selected) {
   pickedColor = selected;
   const box = $('colorPick');
@@ -366,83 +620,132 @@ function buildColorPick(selected) {
   });
 }
 
-function readCourseForm() {
-  const start = Number($('f_start').value);
-  const end = Number($('f_end').value);
-  const startWeek = Number($('f_startWeek').value);
-  const endWeek = Number($('f_endWeek').value);
-  const name = $('f_name').value.trim();
-  if (!name) return { err: '请填写课程名' };
-  if (!start || !end || start > end) return { err: '节次不合法：结束节次需不小于开始节次' };
-  if (!startWeek || !endWeek || startWeek > endWeek) return { err: '周次不合法：结束周需不小于开始周' };
-  return {
-    course: normalizeCourse({
-      id: editingCourseId,
-      name,
-      teach: $('f_teach').value.trim(),
-      room: $('f_room').value.trim(),
-      day: Number($('f_day').value),
-      start, step: end - start + 1,
-      startWeek, endWeek,
-      isOdd: Number($('f_odd').value),
-      color: pickedColor
-    })
-  };
-}
-
-// 冲突检测（软提示，实现在 core/conflict.js）
-function findConflict(c) {
-  return state.courses.find(o => o.id !== c.id && WakeupConflict.slotsConflict(o, c));
-}
-
-function saveCourseFromForm() {
-  const r = readCourseForm();
-  if (r.err) { $('formTip').textContent = r.err; return; }
-  const c = r.course;
-  const conflict = findConflict(c);
-  if (conflict && !confirm(`与课程「${conflict.name}」时间冲突，仍要保存吗？`)) return;
-
-  if (courseModalMode === 'edit') {
-    const i = state.courses.findIndex(x => x.id === editingCourseId);
-    if (i >= 0) state.courses[i] = c;
-  } else {
-    state.courses.push(c);
-  }
-  persist();
-  closeModal('courseModal');
-  render();
-  toast(courseModalMode === 'edit' ? '修改成功' : '添加成功');
-}
-
-// 双击确认删除（还原原版"再点一次确认删除"）
-let deleteArmed = false;
-function onDeleteClick() {
-  if (!deleteArmed) {
-    deleteArmed = true;
-    const btn = $('btnDeleteCourse');
-    btn.textContent = '再点一次确认删除';
-    btn.classList.add('confirm');
-    setTimeout(() => {
-      deleteArmed = false;
-      btn.textContent = '删除';
-      btn.classList.remove('confirm');
-    }, 3000);
-    return;
-  }
-  state.courses = state.courses.filter(c => c.id !== editingCourseId);
-  persist();
-  closeModal('courseModal');
-  render();
-  toast('删除成功');
-}
-
 // ---------- 弹窗开关 ----------
 function openModal(id) { $(id).hidden = false; }
 function closeModal(id) { $(id).hidden = true; }
 
-// ---------- 设置 ----------
+// ---------- 课表管理（多课表） ----------
+function buildScheduleSelect() {
+  const sel = $('scheduleSelect');
+  sel.innerHTML = '';
+  for (const s of state.schedules) {
+    const o = document.createElement('option');
+    o.value = s.id;
+    o.textContent = s.name;
+    sel.appendChild(o);
+  }
+  sel.value = state.currentScheduleId;
+}
+
+function switchSchedule(id) {
+  if (!state.schedules.find(s => s.id === id)) return;
+  state.currentScheduleId = id;
+  state.updatedAt = Date.now();
+  persist();
+  viewWeek = Math.min(currentSettings().totalWeeks, Math.max(1, calcCurrentWeek()));
+  buildWeekSelect();
+  render();
+  renderTodayInfo();
+  showToast(`已切换到「${currentSchedule().name}」`);
+}
+
+function openScheduleManager() {
+  renderScheduleList();
+  openModal('scheduleModal');
+}
+
+function renderScheduleList() {
+  const box = $('scheduleList');
+  box.innerHTML = '';
+  state.schedules.forEach((s, i) => {
+    const row = document.createElement('div');
+    row.className = 'sch-row';
+    row.dataset.id = s.id;
+    row.innerHTML = `
+      <button type="button" class="icon-btn sch-up" title="上移" ${i === 0 ? 'disabled' : ''}>↑</button>
+      <button type="button" class="icon-btn sch-down" title="下移" ${i === state.schedules.length - 1 ? 'disabled' : ''}>↓</button>
+      <input type="text" class="sch-name" value="${escapeHtml(s.name)}" maxlength="30">
+      <span class="sch-meta">${s.courses.length} 门课${s.id === state.currentScheduleId ? ' · 当前' : ''}</span>
+      <button type="button" class="danger-btn sch-del">删除</button>
+    `;
+    box.appendChild(row);
+  });
+}
+
+function bindScheduleManager() {
+  $('btnManageSchedules').onclick = openScheduleManager;
+  $('scheduleSelect').onchange = (e) => switchSchedule(e.target.value);
+  $('btnCreateSchedule').onclick = () => {
+    const name = $('newScheduleName').value.trim();
+    if (!name) { showToast('请输入新课表名称'); return; }
+    const sch = M.normalizeSchedule({ name });
+    state.schedules.push(sch);
+    state.currentScheduleId = sch.id;
+    state.updatedAt = Date.now();
+    $('newScheduleName').value = '';
+    persist();
+    buildScheduleSelect();
+    renderScheduleList();
+    render();
+    renderTodayInfo();
+    showToast(`已创建「${sch.name}」`);
+  };
+
+  const box = $('scheduleList');
+  box.addEventListener('click', (e) => {
+    const row = e.target.closest('.sch-row');
+    if (!row) return;
+    const id = row.dataset.id;
+    if (e.target.closest('.sch-up') || e.target.closest('.sch-down')) {
+      const idx = state.schedules.findIndex(s => s.id === id);
+      const dir = e.target.closest('.sch-up') ? -1 : 1;
+      const j = idx + dir;
+      if (j < 0 || j >= state.schedules.length) return;
+      [state.schedules[idx], state.schedules[j]] = [state.schedules[j], state.schedules[idx]];
+      state.updatedAt = Date.now();
+      persist();
+      buildScheduleSelect();
+      renderScheduleList();
+      return;
+    }
+    if (e.target.closest('.sch-del')) {
+      if (state.schedules.length <= 1) { showToast('至少保留一个课表'); return; }
+      const btn = e.target.closest('.sch-del');
+      if (btn.dataset.armed !== '1') {
+        btn.dataset.armed = '1';
+        btn.textContent = '确认删除?';
+        setTimeout(() => { btn.dataset.armed = ''; btn.textContent = '删除'; }, 3000);
+        return;
+      }
+      state.schedules = state.schedules.filter(s => s.id !== id);
+      if (state.currentScheduleId === id) state.currentScheduleId = state.schedules[0].id;
+      state.updatedAt = Date.now();
+      persist();
+      buildScheduleSelect();
+      renderScheduleList();
+      render();
+      renderTodayInfo();
+      showToast('课表已删除');
+    }
+  });
+  box.addEventListener('change', (e) => {
+    if (!e.target.classList.contains('sch-name')) return;
+    const row = e.target.closest('.sch-row');
+    const s = state.schedules.find(x => x.id === row.dataset.id);
+    if (!s) return;
+    s.name = e.target.value.trim() || s.name;
+    s.updatedAt = Date.now();
+    state.updatedAt = Date.now();
+    persist();
+    buildScheduleSelect();
+    row.querySelector('.sch-meta').textContent = `${s.courses.length} 门课${s.id === state.currentScheduleId ? ' · 当前' : ''}`;
+  });
+}
+
+// ---------- 设置（挂当前课表） ----------
 function openSettings() {
-  const s = state.settings;
+  const s = currentSettings();
+  $('s_scheduleName').value = currentSchedule().name;
   $('s_termStart').value = s.termStart;
   $('s_totalWeeks').value = s.totalWeeks;
   const cnSel = $('s_classNum');
@@ -453,7 +756,7 @@ function openSettings() {
   $('alphaVal').textContent = s.alpha + '%';
   $('s_itemHeight').value = s.itemHeight;
   $('heightVal').textContent = s.itemHeight + 'px';
-  $('s_theme').value = s.theme;
+  $('s_theme').value = state.prefs.theme;
   $('s_showOtherWeek').checked = s.showOtherWeek;
   $('s_sundayFirst').checked = s.sundayFirst;
   $('s_sameLen').checked = s.sameLen;
@@ -466,7 +769,7 @@ function openSettings() {
 }
 
 function buildTimeTable() {
-  const s = state.settings;
+  const s = currentSettings();
   const box = $('timeTable');
   box.innerHTML = '';
   for (let i = 0; i < s.classNum; i++) {
@@ -483,30 +786,21 @@ function buildTimeTable() {
 }
 
 function collectSettings() {
-  const s = { ...state.settings };
-  s.termStart = $('s_termStart').value || s.termStart;
-  s.totalWeeks = Math.min(40, Math.max(1, Number($('s_totalWeeks').value) || 20));
-  const newClassNum = Number($('s_classNum').value);
+  const cur = currentSettings();
+  const s = { ...cur };
+  s.termStart = $('s_termStart').value || cur.termStart;
+  s.totalWeeks = Number($('s_totalWeeks').value) || 20;
+  s.classNum = Number($('s_classNum').value);
   s.alpha = Number($('s_alpha').value);
   s.itemHeight = Number($('s_itemHeight').value);
-  s.theme = $('s_theme').value;
   s.showOtherWeek = $('s_showOtherWeek').checked;
   s.sundayFirst = $('s_sundayFirst').checked;
   s.sameLen = $('s_sameLen').checked;
-
-  // 时间表
-  s.times = state.settings.times.map(t => ({ ...t }));
+  s.times = cur.times.map(t => ({ ...t }));
   document.querySelectorAll('#timeTable input[data-ti]').forEach(inp => {
     const i = Number(inp.dataset.ti);
     if (inp.value) s.times[i][inp.dataset.field] = inp.value;
   });
-  while (s.times.length < newClassNum) {
-    const i = s.times.length;
-    s.times.push({ start: DEFAULT_TIMES[i][0], end: DEFAULT_TIMES[i][1] });
-  }
-  s.times = s.times.slice(0, newClassNum);
-  s.classNum = newClassNum;
-
   if (s.sameLen) {
     const len = Number($('s_lessonLen').value) || 45;
     s.times.forEach(t => { t.end = addMinutes(t.start, len); });
@@ -514,23 +808,26 @@ function collectSettings() {
   return s;
 }
 
-// addMinutes 由 core/week.js 提供（别名引入）
-
 function saveSettings() {
-  const s = collectSettings();
-  const oldTermStart = state.settings.termStart;
-  state.settings = normalizeSettings(s);
-  state.viewWeek = Math.min(state.settings.totalWeeks, Math.max(1, state.viewWeek));
-  if (oldTermStart !== state.settings.termStart) {
-    state.viewWeek = Math.min(state.settings.totalWeeks, Math.max(1, calcCurrentWeek()));
+  const sch = currentSchedule();
+  const oldTermStart = sch.settings.termStart;
+  sch.name = $('s_scheduleName').value.trim() || sch.name;
+  sch.settings = M.normalizeSettings(collectSettings());
+  state.prefs.theme = $('s_theme').value;
+  document.documentElement.dataset.theme = state.prefs.theme;
+
+  viewWeek = Math.min(sch.settings.totalWeeks, Math.max(1, viewWeek));
+  if (oldTermStart !== sch.settings.termStart) {
+    viewWeek = Math.min(sch.settings.totalWeeks, Math.max(1, calcCurrentWeek()));
   }
-  document.documentElement.dataset.theme = state.settings.theme;
+  touchSchedule();
   persist();
+  buildScheduleSelect();
   buildWeekSelect();
   render();
   renderTodayInfo();
   closeModal('settingsModal');
-  toast('设置已保存');
+  showToast('设置已保存');
 }
 
 // ---------- 今日课程 ----------
@@ -542,28 +839,35 @@ function openTodayModal() {
 
   $('todayModalTitle').textContent = `今日课程 · ${now.getMonth() + 1}月${now.getDate()}日 ${DAY_NAMES[todayDay]}`;
 
-  const list = state.courses
-    .filter(c => c.day === todayDay && courseInWeek(c, curWeek))
-    .sort((a, b) => a.start - b.start);
+  const list = allEntries()
+    .filter(e => e.slot.day === todayDay && C.slotInWeek(e.slot, curWeek))
+    .sort((a, b) => entryStartMin(a) - entryStartMin(b));
 
   const box = $('todayList');
   if (!list.length) {
     box.innerHTML = `<div class="today-empty">今天没有课，好好休息吧 ~</div>`;
   } else {
     box.innerHTML = '';
-    for (const c of list) {
-      const t1 = state.settings.times[Math.min(c.start, state.settings.classNum) - 1] || { start: '--:--', end: '--:--' };
-      const t2 = state.settings.times[Math.min(c.start + c.step - 1, state.settings.classNum) - 1] || { start: '--:--', end: '--:--' };
-      const [s1, s2] = [toMin(t1.start), toMin(t2.end)];
-      const isPast = nowMin > s2;
-      const isNow = nowMin >= s1 && nowMin <= s2;
+    for (const e of list) {
+      const { course: c, slot: sl } = e;
+      const s = currentSettings();
+      let t1s, t2e;
+      if (sl.customTime) {
+        t1s = sl.customTime.start; t2e = sl.customTime.end;
+      } else {
+        const t1 = s.times[Math.min(sl.start, s.classNum) - 1] || { start: '--:--' };
+        const t2 = s.times[Math.min(sl.start + sl.step - 1, s.classNum) - 1] || { end: '--:--' };
+        t1s = t1.start; t2e = t2.end;
+      }
+      const isPast = nowMin > toMin(t2e);
+      const isNow = nowMin >= toMin(t1s) && nowMin <= toMin(t2e);
       const item = document.createElement('div');
       item.className = `today-item${isPast ? ' past' : ''}${isNow ? ' current' : ''}`;
       item.innerHTML = `
-        <span class="t-time">${t1.start}<br>${t2.end}</span>
+        <span class="t-time">${t1s}<br>${t2e}</span>
         <div>
           <div class="t-name">${escapeHtml(c.name)}</div>
-          <div class="t-sub">${escapeHtml([c.room, c.teach && c.teach + ' 老师'].filter(Boolean).join(' · ') || '—')}</div>
+          <div class="t-sub">${escapeHtml([sl.room, sl.teach && sl.teach + ' 老师'].filter(Boolean).join(' · ') || '—')}</div>
         </div>
         <span class="t-state${isNow ? ' now' : ''}">${isNow ? '● 进行中' : (isPast ? '已结束' : '未开始')}</span>
       `;
@@ -572,52 +876,72 @@ function openTodayModal() {
   }
   openModal('todayModal');
 }
-// toMin 由 core/week.js 提供（toMinutes 别名）
 
-// ---------- 导入 / 导出（经分享端口：文件即传输介质） ----------
-async function doImport() {
-  const r = await Ports.share.receive();
-  if (!r) return;
-  if (r.error) { toast('导入失败：无法读取文件'); return; }
-  let data;
-  try { data = JSON.parse(r.text); } catch (e) { toast('导入失败：文件不是有效的 JSON'); return; }
-  if (!data || !Array.isArray(data.courses)) {
-    toast('导入失败：缺少 courses 字段');
-    return;
-  }
-  if (!confirm(`将导入 ${data.courses.length} 门课程并覆盖当前数据，继续吗？`)) return;
-  state.courses = data.courses.map(normalizeCourse);
-  if (data.settings) state.settings = normalizeSettings(data.settings);
-  document.documentElement.dataset.theme = state.settings.theme;
-  state.viewWeek = Math.min(state.settings.totalWeeks, Math.max(1, calcCurrentWeek()));
-  await persist();
-  buildWeekSelect();
-  render();
-  renderTodayInfo();
-  toast(`导入成功：${state.courses.length} 门课程`);
+// ---------- 导入 / 导出（C4 过渡实现：备份 + 合并；C5 扩展分享/QR） ----------
+function dateStamp() {
+  const d = new Date();
+  return `${d.getFullYear()}${W.pad2(d.getMonth() + 1)}${W.pad2(d.getDate())}`;
 }
 
 async function doExport() {
-  const payload = {
-    app: 'wakeup-schedule-local',
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    courses: state.courses,
-    settings: state.settings
-  };
-  const where = await Ports.share.send(JSON.stringify(payload, null, 2), 'wakeup-schedule-backup.json');
-  if (where) toast(`已导出到 ${where}`);
+  const where = await Ports.share.send(Bk.serialize(state), `wakeup-backup-${dateStamp()}.json`);
+  if (where) showToast(`已导出到 ${where}`);
+}
+
+async function doImport() {
+  const r = await Ports.share.receive();
+  if (!r) return;
+  if (r.error) { showToast('导入失败：无法读取文件'); return; }
+  const parsed = Bk.parseAuto(r.text);
+  if (parsed.error) { showToast('导入失败：' + parsed.error); return; }
+
+  if (parsed.kind === 'share') {
+    importAsNewSchedules([parsed.schedule]);
+    return;
+  }
+  // 完整备份 → LWW 合并（非破坏性）
+  const n = parsed.state.schedules.reduce((a, s) => a + s.courses.length, 0);
+  if (!confirm(`识别到备份：${parsed.state.schedules.length} 个课表 / ${n} 门课程。\n将与现有数据合并（双方较新的修改保留），继续吗？`)) return;
+  state = Mrg.mergeState(state, parsed.state);
+  await persist();
+  buildScheduleSelect();
+  buildWeekSelect();
+  render();
+  renderTodayInfo();
+  showToast('合并导入完成');
+}
+
+function importAsNewSchedules(list) {
+  const existing = new Set(state.schedules.map(s => s.name));
+  let first = null;
+  for (const raw of list) {
+    const sch = M.normalizeSchedule(JSON.parse(JSON.stringify(raw)));
+    sch.id = M.newId('sch');
+    if (existing.has(sch.name)) sch.name += '(导入)';
+    existing.add(sch.name);
+    state.schedules.push(sch);
+    if (!first) first = sch.id;
+  }
+  state.currentScheduleId = first;
+  state.updatedAt = Date.now();
+  viewWeek = Math.min(currentSettings().totalWeeks, Math.max(1, calcCurrentWeek()));
+  persist();
+  buildScheduleSelect();
+  buildWeekSelect();
+  render();
+  renderTodayInfo();
+  showToast(`已导入 ${list.length} 个课表`);
 }
 
 // ---------- 事件绑定 ----------
 function bindEvents() {
-  $('prevWeek').onclick = () => setViewWeek(state.viewWeek - 1);
-  $('nextWeek').onclick = () => setViewWeek(state.viewWeek + 1);
+  $('prevWeek').onclick = () => setViewWeek(viewWeek - 1);
+  $('nextWeek').onclick = () => setViewWeek(viewWeek + 1);
   $('backToday').onclick = () => setViewWeek(Math.max(1, calcCurrentWeek()));
   $('weekSelect').onchange = (e) => setViewWeek(Number(e.target.value));
 
-  $('btnAdd').onclick = () => openCourseModal('add', null);
-  $('fabAdd').onclick = () => openCourseModal('add', null);
+  $('btnAdd').onclick = () => openCourseModal('add', null, null);
+  $('fabAdd').onclick = () => openCourseModal('add', null, null);
   $('btnSettings').onclick = openSettings;
   $('btnTodayCourses').onclick = openTodayModal;
   $('btnImport').onclick = doImport;
@@ -625,13 +949,25 @@ function bindEvents() {
 
   $('btnEditCourse').onclick = () => {
     if (courseModalMode === 'view') {
-      const c = state.courses.find(x => x.id === editingCourseId);
+      const c = findCourse(editingCourseId);
       if (c) openCourseModal('edit', c);
     } else {
       saveCourseFromForm();
     }
   };
   $('btnDeleteCourse').onclick = onDeleteClick;
+  bindDeleteScopeButtons();
+  bindSlotListEvents();
+
+  $('btnAddSlot').onclick = () => {
+    const box = $('slotList');
+    const last = box.lastElementChild;
+    const sl = last ? readSlotFromCard(last) : M.normalizeSlot({});
+    if (sl.err) { $('formTip').textContent = sl.err; return; }
+    box.appendChild(slotCard(sl.slot || sl, box.children.length));
+    renumberSlots();
+    box.lastElementChild.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  };
 
   $('btnSaveSettings').onclick = saveSettings;
   $('s_alpha').oninput = (e) => $('alphaVal').textContent = e.target.value + '%';
@@ -647,7 +983,7 @@ function bindEvents() {
       const endInp = row.querySelector('input[data-field="end"]');
       if (startInp && startInp.value) endInp.value = addMinutes(startInp.value, len);
     });
-    toast('已按统一时长更新全部下课时间');
+    showToast('已按统一时长更新全部下课时间');
   };
 
   // 关闭弹窗
@@ -658,29 +994,30 @@ function bindEvents() {
     ov.addEventListener('mousedown', (e) => { if (e.target === ov) ov.hidden = true; });
   });
 
-  // 键盘：← → 切周，Home 回本周，N 新增课程
+  // 键盘：← → 切周，Home 回本周，N 新增
   document.addEventListener('keydown', (e) => {
     const typing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName);
     if (typing) return;
-    if (!$('courseModal').hidden || !$('settingsModal').hidden || !$('todayModal').hidden) {
+    const anyModal = ['courseModal', 'settingsModal', 'todayModal', 'scheduleModal'].some(id => !$(id).hidden);
+    if (anyModal) {
       if (e.key === 'Escape') document.querySelectorAll('.modal-overlay').forEach(m => m.hidden = true);
       return;
     }
-    if (e.key === 'ArrowLeft') setViewWeek(state.viewWeek - 1);
-    else if (e.key === 'ArrowRight') setViewWeek(state.viewWeek + 1);
+    if (e.key === 'ArrowLeft') setViewWeek(viewWeek - 1);
+    else if (e.key === 'ArrowRight') setViewWeek(viewWeek + 1);
     else if (e.key === 'Home') setViewWeek(Math.max(1, calcCurrentWeek()));
-    else if (e.key === 'n' || e.key === 'N') openCourseModal('add', null);
+    else if (e.key === 'n' || e.key === 'N') openCourseModal('add', null, null);
   });
 
   // 触摸板横向滑动切周
   $('scheduleWrap').addEventListener('wheel', (e) => {
     if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && Math.abs(e.deltaX) > 20) {
       e.preventDefault();
-      setViewWeek(state.viewWeek + (e.deltaX > 0 ? 1 : -1));
+      setViewWeek(viewWeek + (e.deltaX > 0 ? 1 : -1));
     }
   }, { passive: false });
 
-  // 时间表编辑：统一时长模式下，改上课时间自动算下课时间
+  // 时间表编辑：统一时长模式下改上课时间自动算下课时间
   $('timeTable').addEventListener('change', (e) => {
     const inp = e.target;
     if (inp.tagName !== 'INPUT' || !inp.dataset.ti) return;
@@ -690,6 +1027,33 @@ function bindEvents() {
       if (endInp && inp.value) endInp.value = addMinutes(inp.value, len);
     }
   });
+
+  bindScheduleManager();
+}
+
+// 从卡片读取单个 slot（btnAddSlot 复制上一时间段用），失败返回 {err}
+function readSlotFromCard(card) {
+  const s = currentSettings();
+  const start = Number(card.querySelector('.sf-start').value);
+  const end = Number(card.querySelector('.sf-end').value);
+  if (!start || !end || start > end) return { err: '上一时间段节次不合法，无法复制' };
+  let sw = Number(card.querySelector('.sf-sw').value);
+  let ew = Number(card.querySelector('.sf-ew').value);
+  if (!sw || !ew || sw > ew) { sw = 1; ew = s.totalWeeks; }
+  let customTime = null;
+  if (card.querySelector('.sf-custom').checked) {
+    const cts = card.querySelector('.sf-cts').value;
+    const cte = card.querySelector('.sf-cte').value;
+    if (cts && cte && cts < cte) customTime = { start: cts, end: cte };
+  }
+  return M.normalizeSlot({
+    day: Number(card.querySelector('.sf-day').value),
+    start, step: end - start + 1, startWeek: sw, endWeek: ew,
+    isOdd: Number(card.querySelector('.sf-odd').value),
+    room: card.querySelector('.sf-room').value.trim(),
+    teach: card.querySelector('.sf-teach').value.trim(),
+    customTime
+  });
 }
 
 // ---------- 启动 ----------
@@ -697,21 +1061,26 @@ async function init() {
   if (!Ports.isElectron) $('modeBadge').hidden = false;
 
   const text = await Ports.storage.load();
-  let data = null;
-  if (text) { try { data = JSON.parse(text); } catch (e) { data = null; } }
-  state.settings = normalizeSettings(data ? data.settings : null);
-  state.courses = (data && Array.isArray(data.courses) ? data.courses : []).map(normalizeCourse);
+  let raw = null, wasV1 = false;
+  if (text) { try { raw = JSON.parse(text); } catch (e) { raw = null; } }
+  if (raw && !Array.isArray(raw.schedules)) wasV1 = true; // v1 或未知旧格式
 
-  document.documentElement.dataset.theme = state.settings.theme;
-  const cur = calcCurrentWeek();
-  state.viewWeek = Math.min(state.settings.totalWeeks, Math.max(1, cur));
+  state = M.migrate(raw);
+  if (wasV1) await persist(); // 旧格式即刻落盘升级为 v2
 
-  const firstRun = !data || !data.courses || data.courses.length === 0;
+  document.documentElement.dataset.theme = state.prefs.theme;
+  viewWeek = Math.min(currentSettings().totalWeeks, Math.max(1, calcCurrentWeek()));
+
+  buildScheduleSelect();
   buildWeekSelect();
   bindEvents();
   render();
   renderTodayInfo();
-  if (firstRun) toast('欢迎使用 WakeUp 课程表本地版！请先到「设置」填写学期开始日期', 3500);
+
+  if (wasV1) showToast('数据已自动升级到 v2 格式：支持多时间段与多课表', 3200);
+  else if (currentSchedule().courses.length === 0) {
+    showToast('欢迎使用 WakeUp 课程表本地版！请先到「设置」填写学期开始日期', 3500);
+  }
 }
 
 init();

@@ -474,6 +474,96 @@ input[type="date"], input[type="time"] { cursor: pointer; }
   to { opacity: 1; transform: translate(-50%, 0); }
 }
 
+/* ============ 课表切换（多课表） ============ */
+.schedule-area { display: flex; align-items: center; gap: 2px; }
+#scheduleSelect {
+  max-width: 170px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+#scheduleSelect:hover { border-color: var(--accent); }
+
+.sch-new-row { display: flex; gap: 8px; margin-bottom: 14px; }
+.sch-new-row input { flex: 1; }
+
+.sch-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 8px;
+  background: var(--bg);
+}
+.sch-row .sch-name { flex: 1; min-width: 0; }
+.sch-row .sch-meta { font-size: 12px; color: var(--text-2); white-space: nowrap; }
+.sch-row .sch-del { padding: 4px 10px; font-size: 12px; }
+.sch-row .icon-btn:disabled { opacity: 0.3; cursor: default; }
+
+/* ============ 时间段卡片（课程表单） ============ */
+.slots-title {
+  font-size: 13px; font-weight: 700; color: var(--accent);
+  margin: 4px 0 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+.slots-title::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.slot-add-btn { padding: 4px 10px; font-size: 12px; }
+
+.slot-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 12px 4px;
+  margin-bottom: 10px;
+  background: var(--bg);
+}
+.slot-head {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12.5px; font-weight: 700; color: var(--text-2);
+  margin-bottom: 10px;
+}
+.slot-remove:hover { color: #e7554e; }
+
+.range-tabs { display: flex; gap: 0; margin-bottom: 5px; }
+.rt-btn {
+  padding: 3px 10px; font-size: 11.5px;
+  background: transparent; color: var(--text-2);
+  border: 1px solid var(--border);
+}
+.rt-btn:first-child { border-radius: 6px 0 0 6px; }
+.rt-btn:last-child { border-radius: 0 6px 6px 0; border-left: none; }
+.rt-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ============ 课程详情（v2：时间段列表 + 冲突） ============ */
+.detail-credit {
+  font-size: 12px; color: var(--text-2);
+  background: var(--bg); border-radius: 10px; padding: 2px 10px;
+}
+.detail-note { font-size: 13px; color: var(--text-2); }
+.detail-slots { display: flex; flex-direction: column; gap: 6px; }
+.slot-line {
+  display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center;
+  background: var(--bg); border-radius: 8px; padding: 8px 12px; font-size: 13px;
+}
+.slot-line .sl-when { font-weight: 700; }
+.slot-line .sl-weeks, .slot-line .sl-time { color: var(--text-2); font-size: 12.5px; }
+.slot-line .sl-room { color: var(--accent); }
+
+.conflict-list {
+  border: 1px solid #e7554e55;
+  background: #e7554e12;
+  border-radius: 8px; padding: 8px 12px;
+}
+.conflict-title { font-size: 12.5px; font-weight: 700; color: #e7554e; margin-bottom: 4px; }
+.conflict-item { font-size: 12.5px; color: var(--text); }
+
+/* 删除范围选择 */
+.delete-scope { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.delete-scope .danger-btn { padding: 5px 10px; font-size: 12px; }
+
 /* 滚动条 */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
