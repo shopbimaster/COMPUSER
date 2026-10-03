@@ -107,6 +107,7 @@ function render() {
   const grid = $('grid');
   grid.style.setProperty('--day-count', visibleDays.length);
   grid.style.setProperty('--unit', s.itemHeight + 'px');
+  grid.style.setProperty('--col-bg-a', s.showColBg ? s.colBgAlpha / 100 : 0);
   grid.innerHTML = '';
 
   const corner = document.createElement('div');
@@ -868,6 +869,10 @@ function openSettings() {
   $('alphaVal').textContent = s.alpha + '%';
   $('s_itemHeight').value = s.itemHeight;
   $('heightVal').textContent = s.itemHeight + 'px';
+  $('s_showColBg').checked = s.showColBg;
+  $('rowColBgAlpha').hidden = !s.showColBg;
+  $('s_colBgAlpha').value = s.colBgAlpha;
+  $('colBgAlphaVal').textContent = s.colBgAlpha + '%';
   $('s_theme').value = state.prefs.theme;
   $('s_showOtherWeek').checked = s.showOtherWeek;
   $('s_showWeekend').checked = s.showWeekend;
@@ -908,6 +913,8 @@ function collectSettings() {
   s.classNum = Number($('s_classNum').value);
   s.alpha = Number($('s_alpha').value);
   s.itemHeight = Number($('s_itemHeight').value);
+  s.showColBg = $('s_showColBg').checked;
+  s.colBgAlpha = Number($('s_colBgAlpha').value);
   s.showOtherWeek = $('s_showOtherWeek').checked;
   s.showWeekend = $('s_showWeekend').checked;
   s.sundayFirst = $('s_sundayFirst').checked;
@@ -1287,6 +1294,10 @@ function bindEvents() {
   $('btnSaveSettings').onclick = saveSettings;
   $('s_alpha').oninput = (e) => $('alphaVal').textContent = e.target.value + '%';
   $('s_itemHeight').oninput = (e) => $('heightVal').textContent = e.target.value + 'px';
+  $('s_showColBg').onchange = (e) => {
+    $('rowColBgAlpha').hidden = !e.target.checked;
+  };
+  $('s_colBgAlpha').oninput = (e) => $('colBgAlphaVal').textContent = e.target.value + '%';
   $('s_sameLen').onchange = (e) => {
     $('s_lessonLen').disabled = !e.target.checked;
     $('btnApplyLen').disabled = !e.target.checked;
