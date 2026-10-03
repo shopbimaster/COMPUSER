@@ -1,6 +1,6 @@
 // WakeUp课程表 本地版 - Electron 主进程
 // 数据完全保存在本地 JSON 文件，无任何网络请求、无广告
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -13,20 +13,6 @@ app.setPath('userData', path.join(DATA_DIR, 'profile'));
 function ensureDataFile() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, JSON.stringify({ courses: [], settings: null }, null, 2), 'utf-8');
-}
-
-function loadData() {
-  ensureDataFile();
-  try {
-    return JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
-  } catch (e) {
-    return { courses: [], settings: null };
-  }
-}
-
-function saveData(data) {
-  ensureDataFile();
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
 }
 
 function createWindow() {
@@ -51,33 +37,43 @@ function createWindow() {
   return win;
 }
 
-// ---------- IPC ----------
-ipcMain.handle('data:load', () => loadData());
-ipcMain.handle('data:save', (_e, data) => { saveData(data); return true; });
+// ---------- IPC（壳只做哑管道：文本进、文本出，语义由渲染进程的 core 决定） ----------
+ipcMain.handle('data:load', () => {
+  ensureDataFile();
+  return fs.readFileSync(DATA_FILE, 'utf-8');
+});
 
-ipcMain.handle('dialog:openJson', async () => {
+ipcMain.handle('data:save', (_e, text) => {
+  ensureDataFile();
+  fs.writeFileSync(DATA_FILE, String(text), 'utf-8');
+  return true;
+});
+
+// 分享端口：文件导出（另存为对话框）
+ipcMain.handle('share:exportFile', async (_e, payload) => {
+  const r = await dialog.showSaveDialog({
+    title: '导出文件',
+    defaultPath: (payload && payload.defaultName) || 'wakeup-export.txt',
+    filters: [{ name: '所有文件', extensions: ['*'] }]
+  });
+  if (r.canceled || !r.filePath) return null;
+  fs.writeFileSync(r.filePath, String((payload && payload.text) || ''), 'utf-8');
+  return r.filePath;
+});
+
+// 分享端口：文件导入（打开对话框）
+ipcMain.handle('share:importFile', async () => {
   const r = await dialog.showOpenDialog({
-    title: '导入课程表 JSON 文件',
-    filters: [{ name: 'JSON', extensions: ['json'] }],
-    properties: ['openFile']
+    title: '选择导入文件',
+    properties: ['openFile'],
+    filters: [{ name: '所有文件', extensions: ['*'] }]
   });
   if (r.canceled || !r.filePaths.length) return null;
   try {
-    return { path: r.filePaths[0], content: JSON.parse(fs.readFileSync(r.filePaths[0], 'utf-8')) };
+    return { name: path.basename(r.filePaths[0]), text: fs.readFileSync(r.filePaths[0], 'utf-8') };
   } catch (e) {
-    return { path: r.filePaths[0], error: String(e) };
+    return { name: r.filePaths[0], error: String(e) };
   }
-});
-
-ipcMain.handle('dialog:saveJson', async (_e, data) => {
-  const r = await dialog.showSaveDialog({
-    title: '导出课程表',
-    defaultPath: 'wakeup-schedule-backup.json',
-    filters: [{ name: 'JSON', extensions: ['json'] }]
-  });
-  if (r.canceled || !r.filePath) return null;
-  fs.writeFileSync(r.filePath, JSON.stringify(data, null, 2), 'utf-8');
-  return r.filePath;
 });
 
 app.whenReady().then(() => {

@@ -47,6 +47,9 @@ const $ = (id) => document.getElementById(id);
 const { parseDate, fmtDate, addDays, mondayIndex, toMinutes: toMin, addMinutes } = WakeupWeek;
 const { slotInWeek: courseInWeek } = WakeupConflict;
 
+// 端口：由适配器桥注入（Electron 桥优先，浏览器桥降级），UI 不再感知平台
+const Ports = window.__ports;
+
 function toast(msg, ms = 2200) {
   const t = $('toast');
   t.textContent = msg;
@@ -56,7 +59,7 @@ function toast(msg, ms = 2200) {
 }
 
 async function persist() {
-  await Storage.save({ courses: state.courses, settings: state.settings });
+  await Ports.storage.save(JSON.stringify({ courses: state.courses, settings: state.settings }));
 }
 
 // ---------- 周计算（还原原版 countWeek：天数差/7+1，实现在 core/week.js） ----------
@@ -571,12 +574,13 @@ function openTodayModal() {
 }
 // toMin 由 core/week.js 提供（toMinutes 别名）
 
-// ---------- 导入 / 导出 ----------
+// ---------- 导入 / 导出（经分享端口：文件即传输介质） ----------
 async function doImport() {
-  const r = await Storage.importJson();
+  const r = await Ports.share.receive();
   if (!r) return;
-  if (r.error) { toast('导入失败：文件不是有效的 JSON'); return; }
-  const data = r.content;
+  if (r.error) { toast('导入失败：无法读取文件'); return; }
+  let data;
+  try { data = JSON.parse(r.text); } catch (e) { toast('导入失败：文件不是有效的 JSON'); return; }
   if (!data || !Array.isArray(data.courses)) {
     toast('导入失败：缺少 courses 字段');
     return;
@@ -594,14 +598,15 @@ async function doImport() {
 }
 
 async function doExport() {
-  const path = await Storage.exportJson({
+  const payload = {
     app: 'wakeup-schedule-local',
     version: 1,
     exportedAt: new Date().toISOString(),
     courses: state.courses,
     settings: state.settings
-  });
-  if (path) toast(`已导出到 ${path}`);
+  };
+  const where = await Ports.share.send(JSON.stringify(payload, null, 2), 'wakeup-schedule-backup.json');
+  if (where) toast(`已导出到 ${where}`);
 }
 
 // ---------- 事件绑定 ----------
@@ -689,9 +694,11 @@ function bindEvents() {
 
 // ---------- 启动 ----------
 async function init() {
-  if (!Storage.isElectron) $('modeBadge').hidden = false;
+  if (!Ports.isElectron) $('modeBadge').hidden = false;
 
-  const data = await Storage.load();
+  const text = await Ports.storage.load();
+  let data = null;
+  if (text) { try { data = JSON.parse(text); } catch (e) { data = null; } }
   state.settings = normalizeSettings(data ? data.settings : null);
   state.courses = (data && Array.isArray(data.courses) ? data.courses : []).map(normalizeCourse);
 
