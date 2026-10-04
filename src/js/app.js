@@ -245,7 +245,7 @@ function buildCourseBlock(e, isCurrent) {
   if (sl.customTime) html += `<div class="course-tag">${sl.customTime.start}~${sl.customTime.end}</div>`;
   if (s.showTimeInGrid && !sl.customTime) html += `<div class="course-sec">${sl.start}-${sl.start + sl.step - 1}节</div>`;
   html += `<div class="course-name">${escapeHtml(c.name)}</div>`;
-  if (s.showTeachInGrid && sl.teach) html += `<div class="course-teach">@${escapeHtml(sl.teach)}</div>`;
+  if (s.showTeachInGrid && sl.teach) html += `<div class="course-teach">${escapeHtml(sl.teach)}</div>`;
   if (sl.room) html += `<div class="course-room">@${escapeHtml(sl.room)}</div>`;
   // 预留接口：showNoteInGrid（备注展示于格子内）待排版方案确定后接入
   el.innerHTML = html;
@@ -388,11 +388,11 @@ function fillCourseForm(c) {
     : (typeof c.color === 'string' && /^#[0-9a-f]{6}$/.test(c.color) ? c.color : -1);
   $('colorPick').hidden = true;
   $('customColorRow').hidden = true;
-  updateColorToggle();
+  updateColorUI();
   renderSlotCards(c.timeSlots);
 }
 
-// 「点击修改颜色」按钮：文字与图标颜色实时反映当前生效颜色
+// 「点击修改颜色」行：按钮颜色 + 预览块 + hex 输入，三者实时反映当前生效颜色
 function pickedHex() {
   if (typeof pickedColor === 'string') return pickedColor;
   if (typeof pickedColor === 'number' && pickedColor >= 0) return COURSE_COLORS[pickedColor];
@@ -401,8 +401,11 @@ function pickedHex() {
   return isNaN(code) ? RANDOM_COLORS[0] : RANDOM_COLORS[code % RANDOM_COLORS.length];
 }
 
-function updateColorToggle() {
-  $('btnToggleColor').style.color = pickedHex();
+function updateColorUI() {
+  const hex = pickedHex();
+  $('btnToggleColor').style.color = hex;
+  $('ccPreview').style.background = hex;
+  if (document.activeElement !== $('ccHex')) $('ccHex').value = hex.slice(1).toUpperCase();
 }
 
 // 色板：库中 10 色 + 最右自定义按钮
@@ -417,7 +420,7 @@ function buildColorPick() {
     sw.onclick = () => {
       pickedColor = i;
       $('customColorRow').hidden = true;
-      updateColorToggle();
+      updateColorUI();
       buildColorPick();
     };
     box.appendChild(sw);
@@ -434,12 +437,12 @@ function buildColorPick() {
   box.appendChild(custom);
 }
 
-// ---------- 自定义取色器（SV 方块 + 色相条，仿新版 WakeUp） ----------
-const cpCtx = { h: 30, s: 1, v: 1, editing: false };
+// ---------- 自定义取色器（SV 方块 + 色相条，拖动实时应用） ----------
+const cpCtx = { h: 30, s: 1, v: 1, editing: false, prev: null };
 
 function openCustomPicker(hex) {
   const { h, s, v } = hexToHsv(hex);
-  Object.assign(cpCtx, { h, s, v });
+  Object.assign(cpCtx, { h, s, v, prev: pickedColor });
   $('customColorRow').hidden = false;
   renderCustomPicker();
 }
@@ -453,9 +456,13 @@ function renderCustomPicker() {
   $('cpDot').style.background = hsvToHex(h, s, v);
   $('cpHueDot').style.left = (h / 360 * 100) + '%';
   $('cpHueDot').style.background = `hsl(${h}, 100%, 50%)`;
-  const hex = hsvToHex(h, s, v);
-  $('ccHex').value = hex.slice(1).toUpperCase();
-  $('ccPreview').style.background = hex;
+}
+
+// 拖动/hue 改变 → 实时写回 pickedColor 并刷新按钮与预览
+function applyPickerColor() {
+  pickedColor = hsvToHex(cpCtx.h, cpCtx.s, cpCtx.v);
+  updateColorUI();
+  buildColorPick();
 }
 
 function bindPickerDrag(el, onmove) {
@@ -1416,28 +1423,32 @@ function bindEvents() {
   bindPickerDrag($('cpSv'), (x, y) => {
     cpCtx.s = x; cpCtx.v = 1 - y;
     renderCustomPicker();
+    applyPickerColor();
   });
   bindPickerDrag($('cpHue'), (x) => {
     cpCtx.h = Math.round(x * 360) % 360;
     renderCustomPicker();
+    applyPickerColor();
   });
   $('ccHex').oninput = (e) => {
     const v = e.target.value.trim();
     if (/^[0-9a-fA-F]{6}$/.test(v)) {
-      Object.assign(cpCtx, hexToHsv('#' + v));
+      pickedColor = '#' + v.toLowerCase();
+      Object.assign(cpCtx, hexToHsv(pickedColor));
       renderCustomPicker();
+      $('btnToggleColor').style.color = pickedColor;
+      $('ccPreview').style.background = pickedColor;
+      buildColorPick();
     }
   };
-  $('btnCpCancel').onclick = () => { $('customColorRow').hidden = true; };
-  $('btnCpOk').onclick = () => {
-    pickedColor = hsvToHex(cpCtx.h, cpCtx.s, cpCtx.v);
+  $('btnCpCancel').onclick = () => {
+    if (cpCtx.prev !== null) pickedColor = cpCtx.prev; // 恢复打开前颜色
     $('customColorRow').hidden = true;
-    updateColorToggle();
+    updateColorUI();
     buildColorPick();
-    showToast('颜色已应用');
   };
   $('f_name').addEventListener('input', () => {
-    if (pickedColor === -1) updateColorToggle(); // 自动配色随课程名实时变
+    if (pickedColor === -1) updateColorUI(); // 自动配色随课程名实时变
   });
   $('btnCancelCourse').onclick = () => closeModal('courseModal');
 

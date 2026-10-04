@@ -508,7 +508,30 @@ input[type="range"]::-webkit-slider-thumb {
 .cf-head input { font-size: 16px; font-weight: 700; flex: 1; border-bottom: 1px solid var(--grid-line); padding: 4px 0; }
 .cf-head input:focus { border-bottom-color: var(--accent); }
 
-.cf-color-toggle { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.cf-color-toggle { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+/* 颜色行：按钮居左，预览块 + hex 输入靠右平衡视觉 */
+.cf-color-line { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+.cf-color-line .cc-preview {
+  width: 30px; height: 24px;
+  border-radius: 8px;
+  background: var(--card);
+  border: 1px solid var(--grid-line);
+  flex-shrink: 0;
+}
+.cf-color-line .cc-hex {
+  display: inline-flex; align-items: center; gap: 3px;
+  color: var(--text-2); font-size: 13px;
+}
+.cf-color-line .cc-hex input {
+  width: 82px;
+  background: var(--card);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text);
+}
 .color-pick { display: flex; gap: 9px; flex-wrap: wrap; padding: 10px 2px 4px; }
 .color-swatch {
   width: 28px; height: 28px;
@@ -527,7 +550,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 .color-swatch.custom.selected { border: 2.5px solid var(--indigo); color: var(--indigo); }
 
-/* 自定义取色器：SV 明暗方块 + 色相条 + hex（仿新版 WakeUp） */
+/* 自定义取色器：SV 明暗方块 + 色相条（拖动实时应用） */
 .custom-color-row { display: flex; flex-direction: column; gap: 12px; padding: 10px 2px 6px; }
 .cp-sv {
   position: relative;
@@ -554,26 +577,9 @@ input[type="range"]::-webkit-slider-thumb {
   transform: translate(-50%, -50%);
   pointer-events: none;
 }
-.cp-foot { display: flex; align-items: center; gap: 12px; }
-.cc-preview {
-  width: 44px; height: 30px;
-  border-radius: 8px;
-  background: var(--card);
-  border: 1px solid var(--grid-line);
-  flex-shrink: 0;
-}
-.cc-hex { display: inline-flex; align-items: center; gap: 4px; color: var(--text-2); font-size: 14px; }
-.cc-hex input {
-  width: 88px;
-  background: var(--card);
-  border-radius: 8px;
-  padding: 6px 9px;
-  font-size: 14px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-}
-.cp-actions { display: flex; justify-content: space-around; gap: 20px; }
-.cp-actions .link-btn { font-size: 14px; padding: 6px 22px; }
+.cp-hue .cp-dot { top: 50%; }  /* 色相滑块垂直居中于滑轨 */
+.cp-actions { display: flex; justify-content: flex-end; }
+.cp-actions .link-btn { font-size: 13.5px; padding: 4px 14px; }
 
 .cf-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--grid-line); }
 .cf-row .cf-ico { font-size: 15px; width: 22px; text-align: center; flex-shrink: 0; }
