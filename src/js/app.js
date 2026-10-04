@@ -520,6 +520,9 @@ function renderTimeDlg() {
       b.onclick = () => onpick(v.value);
       box.appendChild(b);
     }
+    // 选中项滚动到可视区（列已是固定高度滚动窗口）
+    const sel = box.querySelector('button.sel');
+    if (sel) sel.scrollIntoView({ block: 'center' });
   };
   fill('tpDay', [1, 2, 3, 4, 5, 6, 7].map(d => ({ value: d, label: DAY_NAMES[d] })), tpCtx.day,
     v => { tpCtx.day = v; renderTimeDlg(); });
@@ -890,7 +893,7 @@ function openSettings() {
   $('headerFsVal').textContent = s.headerTextSize + 'px';
   $('s_showSaturday').checked = s.showSaturday;
   $('s_showSunday').checked = s.showSunday;
-  $('rowSundayFirst').hidden = !(s.showSaturday || s.showSunday);
+  $('rowSundayFirst').hidden = !s.showSunday;
   $('s_sundayFirst').checked = s.sundayFirst;
   $('s_textFs').value = s.courseTextSize;
   $('textFsVal').textContent = s.courseTextSize + 'px';
@@ -1340,7 +1343,7 @@ function bindEvents() {
     buildTimeTable();
   };
   const syncSundayFirstRow = () => {
-    $('rowSundayFirst').hidden = !$('s_showSaturday').checked && !$('s_showSunday').checked;
+    $('rowSundayFirst').hidden = !$('s_showSunday').checked;
   };
   $('s_showSaturday').onchange = syncSundayFirstRow;
   $('s_showSunday').onchange = syncSundayFirstRow;

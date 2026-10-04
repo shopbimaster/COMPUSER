@@ -238,6 +238,25 @@
 
         <div class="set-group">课表外观</div>
         <div class="set-card">
+          <div class="set-sub">通用</div>
+          <div class="set-row">
+            <span class="sr-label">主题</span>
+            <div class="sr-ctrl">
+              <select id="s_theme">
+                <option value="light">浅色</option>
+                <option value="dark">深色</option>
+              </select>
+            </div>
+          </div>
+          <div class="set-row">
+            <span class="sr-label">显示列衬底</span>
+            <div class="sr-ctrl"><input type="checkbox" id="s_showColBg"></div>
+          </div>
+          <div class="set-row" id="rowColBgAlpha">
+            <span class="sr-label">衬底不透明度</span>
+            <div class="sr-ctrl"><input type="range" id="s_colBgAlpha" min="10" max="100" step="5"><span class="sr-val" id="colBgAlphaVal"></span></div>
+          </div>
+
           <div class="set-sub">型体</div>
           <div class="set-row">
             <span class="sr-label">表头文字大小</span>
@@ -304,25 +323,6 @@
           <div class="set-row">
             <span class="sr-label">在格子内显示备注</span>
             <div class="sr-ctrl"><input type="checkbox" id="s_showNoteInGrid"></div>
-          </div>
-
-          <div class="set-sub">通用</div>
-          <div class="set-row">
-            <span class="sr-label">主题</span>
-            <div class="sr-ctrl">
-              <select id="s_theme">
-                <option value="light">浅色</option>
-                <option value="dark">深色</option>
-              </select>
-            </div>
-          </div>
-          <div class="set-row">
-            <span class="sr-label">显示列衬底</span>
-            <div class="sr-ctrl"><input type="checkbox" id="s_showColBg"></div>
-          </div>
-          <div class="set-row" id="rowColBgAlpha">
-            <span class="sr-label">衬底不透明度</span>
-            <div class="sr-ctrl"><input type="range" id="s_colBgAlpha" min="10" max="100" step="5"><span class="sr-val" id="colBgAlphaVal"></span></div>
           </div>
         </div>
       </div>

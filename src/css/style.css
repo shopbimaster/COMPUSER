@@ -549,8 +549,13 @@ input[type="range"]::-webkit-slider-thumb {
 
 .sr-hidden { display: none; }
 
-.slot-custom-row { display: flex; align-items: center; gap: 10px; padding: 6px 2px 2px; flex-wrap: wrap; }
-.slot-custom-row label { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--text-2); cursor: pointer; }
+/* 与 .slot-row-btn 对齐：勾选框落在 22px 图标列内居中，文字与上行同字号同列 */
+.slot-custom-row { display: flex; align-items: center; padding: 8px 2px; flex-wrap: wrap; gap: 10px; }
+.slot-custom-row label { display: inline-flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--text); cursor: pointer; }
+.slot-custom-row label input[type="checkbox"] {
+  width: 22px; height: 15px; margin: 0; flex-shrink: 0; accent-color: var(--indigo);
+}
+.slot-custom-row .ct-times { font-size: 12.5px; }
 .ct-times { display: flex; align-items: center; gap: 6px; }
 .ct-times input[type="time"] {
   background: var(--card);
@@ -620,15 +625,16 @@ input[type="range"]::-webkit-slider-thumb {
 .dlg-foot { display: flex; justify-content: space-around; padding: 10px 20px 14px; gap: 20px; }
 .dlg-foot .link-btn { font-size: 14.5px; padding: 8px 24px; }
 
-/* ============ 时间选择弹窗（三列点选） ============ */
+/* ============ 时间选择弹窗（三列滚动点选） ============ */
 .tp-cols {
   display: grid;
   grid-template-columns: 1.2fr 1fr 1fr;
+  grid-template-rows: minmax(0, 1fr); /* 固定行高，防止内容把弹窗撑到按钮区 */
   gap: 6px;
   padding: 12px 18px 4px;
-  max-height: 300px;
+  height: min(320px, 46vh);
 }
-.tp-col { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+.tp-col { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; min-height: 0; }
 .tp-col .tp-head { font-size: 11px; color: var(--text-2); text-align: center; padding-bottom: 4px; }
 .tp-col button {
   padding: 8px 4px;
