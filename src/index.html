@@ -10,17 +10,22 @@
 <body>
   <!-- 顶栏：周标题（点击打开周数面板）+ 右侧图标组 -->
   <header class="topbar">
-    <div class="tb-left" id="tbWeekBtn" title="选择周数 / 切换课表">
-      <div class="tb-title-row">
-        <button type="button" class="wk-arrow" id="prevWeek" title="上一周 (←)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 6l-6 6 6 6"/></svg>
-        </button>
-        <span class="tb-title-mid"><span class="tb-title"><span id="weekLabel">第 1 周</span></span><span class="tb-status" id="weekStatus"></span></span>
-        <button type="button" class="wk-arrow" id="nextWeek" title="下一周 (→)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 6l6 6-6 6"/></svg>
-        </button>
+    <div class="menu-wrap tb-left-wrap">
+      <div class="tb-left" id="tbWeekBtn" title="周数操作">
+        <div class="tb-title-row">
+          <button type="button" class="wk-arrow" id="prevWeek" title="上一周 (←)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 6l-6 6 6 6"/></svg>
+          </button>
+          <span class="tb-title-mid"><span class="tb-title"><span id="weekLabel">第 1 周</span></span><span class="tb-status" id="weekStatus"></span></span>
+          <button type="button" class="wk-arrow" id="nextWeek" title="下一周 (→)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 6l6 6-6 6"/></svg>
+          </button>
+        </div>
+        <div class="tb-date" id="todayInfo"></div>
       </div>
-      <div class="tb-date" id="todayInfo"></div>
+      <div class="dropdown align-left" id="weekQuickMenu" hidden>
+        <button data-act="backtoday">回到本周</button>
+      </div>
     </div>
 
     <div class="tb-actions">
@@ -48,6 +53,9 @@
           <button data-act="qr">QR 码 / 文本口令…</button>
         </div>
       </div>
+      <button type="button" class="tb-icon" id="btnMore" title="课表 / 功能">
+        <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+      </button>
     </div>
   </header>
 
@@ -75,7 +83,6 @@
       <div class="sheet-handle"></div>
       <div class="sheet-row-head">
         <span>周数</span>
-        <button type="button" class="link-btn" id="btnBackCurWeek">回到本周</button>
       </div>
       <div class="wp-slider-row">
         <input type="range" id="wpSlider" min="1" max="20" step="1">
@@ -97,7 +104,7 @@
           <span id="pfThemeTxt">夜间模式</span>
         </button>
         <button type="button" class="pf-btn" id="btnPanelSettings">
-          <span class="pf-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.08a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56h.08a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.08a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.05z"/></svg></span>
+          <span class="pf-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.2l7.3 4.2v8.4L12 19.8l-7.3-4v-8.4z"/><circle cx="12" cy="11.9" r="3.1"/></svg></span>
           <span>课表设置</span>
         </button>
       </div>

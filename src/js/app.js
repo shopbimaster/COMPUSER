@@ -1296,10 +1296,16 @@ function bindEvents() {
   $('prevWeek').onclick = (e) => { e.stopPropagation(); setViewWeek(viewWeek - 1); };
   $('nextWeek').onclick = (e) => { e.stopPropagation(); setViewWeek(viewWeek + 1); };
 
-  // 顶栏：周数面板
-  $('tbWeekBtn').onclick = () => { updateWeekUI(); openModal('weekPanel'); };
+  // 顶栏：周标题 → 左上角小菜单（回到本周）；三点按钮 → 周数/课表/功能面板
+  $('tbWeekBtn').onclick = (e) => { if (!e.target.closest('.wk-arrow')) toggleMenu('weekQuickMenu'); };
+  $('weekQuickMenu').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-act]');
+    if (!b) return;
+    $('weekQuickMenu').hidden = true;
+    if (b.dataset.act === 'backtoday') setViewWeek(Math.max(1, calcCurrentWeek()));
+  });
+  $('btnMore').onclick = () => { updateWeekUI(); openModal('weekPanel'); };
   $('wpSlider').oninput = (e) => setViewWeek(Number(e.target.value));
-  $('btnBackCurWeek').onclick = () => setViewWeek(Math.max(1, calcCurrentWeek()));
 
   // 添加课程
   $('btnAdd').onclick = () => openCourseModal('add', null, null);
