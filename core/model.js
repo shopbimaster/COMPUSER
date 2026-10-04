@@ -34,11 +34,23 @@
     itemHeight: 56,         // 原版默认 56dp
     alpha: 100,             // 新版风格：实色课程块（可调半透明）
     showOtherWeek: true,
-    showWeekend: true,      // 关闭时仅显示周一~周五
+    otherWeekAlpha: 50,     // 非本周课程不透明度 10-100
+    showWeekend: true,      // 兼容旧字段：关闭 → showSaturday/showSunday 均 false
+    showSaturday: true,     // 显示周六列
+    showSunday: true,       // 显示周日列
+    headerTextSize: 13,     // 表头星期文字大小 10-16
     showColBg: true,        // 日列衬底（仿 v1.1：整列铺卡片色，列间缝隙形成分隔）
     colBgAlpha: 100,        // 衬底不透明度 10-100
     sundayFirst: false,
     sameLen: false,         // 每节课时长相同
+    courseTextSize: 12,     // 格子内课程文字大小 9-16
+    cornerRadius: 7,        // 格子圆角 0-16
+    textHCenter: false,     // 格子文字水平居中
+    textVCenter: false,     // 格子文字垂直居中
+    showTimeInGrid: true,   // 在格子内显示上课节次
+    showTeachInGrid: true,  // 在格子内显示教师
+    showNoteInGrid: false,  // 在格子内显示备注（预留接口，暂未生效）
+    gridLines: false,       // 显示网格辅助线（预留接口，暂未生效）
     times: null
   };
 
@@ -57,9 +69,25 @@
     s.totalWeeks = clamp(Number(s.totalWeeks) || 20, 1, 40);
     s.itemHeight = clamp(Number(s.itemHeight) || 56, 40, 90);
     s.alpha = clamp(Number(s.alpha) || 100, 10, 100);
+    s.showOtherWeek = s.showOtherWeek !== false && s.showOtherWeek !== 'false';
+    s.otherWeekAlpha = clamp(Number(s.otherWeekAlpha) || 50, 10, 100);
     s.showWeekend = s.showWeekend !== false && s.showWeekend !== 'false';
+    // 旧版仅有 showWeekend 总开关 → 迁移为周六/周日独立开关
+    const weekendOff = !s.showWeekend && raw && raw.showSaturday === undefined;
+    s.showSaturday = weekendOff ? false : (s.showSaturday !== false && s.showSaturday !== 'false');
+    s.showSunday = weekendOff ? false : (s.showSunday !== false && s.showSunday !== 'false');
+    s.headerTextSize = clamp(Number(s.headerTextSize) || 13, 10, 16);
     s.showColBg = s.showColBg !== false && s.showColBg !== 'false';
     s.colBgAlpha = clamp(Number(s.colBgAlpha) || 100, 10, 100);
+    s.sundayFirst = !!s.sundayFirst;
+    s.courseTextSize = clamp(Number(s.courseTextSize) || 12, 9, 16);
+    s.cornerRadius = clamp(Number(s.cornerRadius) || 7, 0, 16);
+    s.textHCenter = !!s.textHCenter;
+    s.textVCenter = !!s.textVCenter;
+    s.showTimeInGrid = s.showTimeInGrid !== false && s.showTimeInGrid !== 'false';
+    s.showTeachInGrid = s.showTeachInGrid !== false && s.showTeachInGrid !== 'false';
+    s.showNoteInGrid = !!s.showNoteInGrid;
+    s.gridLines = !!s.gridLines;
     if (!s.termStart || !/^\d{4}-\d{2}-\d{2}$/.test(String(s.termStart))) {
       const t = new Date();
       t.setDate(t.getDate() - ((t.getDay() + 6) % 7)); // 本周一

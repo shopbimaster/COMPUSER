@@ -101,13 +101,15 @@ function render() {
   const s = currentSettings();
   const todayStr = fmtDate(new Date());
   const days = dayOrder();
-  // 显示周末关闭 → 仅周一~周五；开启时周日按 sundayFirst 排首/尾
-  const visibleDays = s.showWeekend ? days : days.filter(d => d <= 5);
+  // 周六/周日独立开关（旧 showWeekend 已迁移）；关闭仅隐藏对应列
+  const visibleDays = days.filter(d => d <= 5 || (d === 6 && s.showSaturday) || (d === 7 && s.showSunday));
 
   const grid = $('grid');
   grid.style.setProperty('--day-count', visibleDays.length);
   grid.style.setProperty('--unit', s.itemHeight + 'px');
   grid.style.setProperty('--col-bg-a', s.showColBg ? s.colBgAlpha / 100 : 0);
+  grid.style.setProperty('--header-fs', s.headerTextSize + 'px');
+  grid.style.setProperty('--ow-alpha', s.otherWeekAlpha / 100);
   grid.innerHTML = '';
 
   const corner = document.createElement('div');
@@ -196,14 +198,20 @@ function buildCourseBlock(e, isCurrent) {
   const style = courseBlockStyle(c);
   el.style.background = style.bg;
   el.style.color = style.text;
+  el.style.fontSize = s.courseTextSize + 'px';
+  el.style.borderRadius = s.cornerRadius + 'px';
+  if (s.textHCenter) el.classList.add('txt-hcenter');
+  if (s.textVCenter) el.classList.add('txt-vcenter');
 
   let html = '';
   if (sl.isOdd === 1) html += `<div class="course-tag">单周</div>`;
   if (sl.isOdd === 2) html += `<div class="course-tag">双周</div>`;
   if (sl.customTime) html += `<div class="course-tag">${sl.customTime.start}~${sl.customTime.end}</div>`;
+  if (s.showTimeInGrid && !sl.customTime) html += `<div class="course-sec">${sl.start}-${sl.start + sl.step - 1}节</div>`;
   html += `<div class="course-name">${escapeHtml(c.name)}</div>`;
-  if (sl.teach) html += `<div class="course-teach">@${escapeHtml(sl.teach)}</div>`;
+  if (s.showTeachInGrid && sl.teach) html += `<div class="course-teach">@${escapeHtml(sl.teach)}</div>`;
   if (sl.room) html += `<div class="course-room">@${escapeHtml(sl.room)}</div>`;
+  // 预留接口：showNoteInGrid（备注展示于格子内）待排版方案确定后接入
   el.innerHTML = html;
 
   el.title = `${c.name} ${sl.room ? '@' + sl.room : ''} ${sl.teach ? sl.teach + ' 老师' : ''}`.trim();
@@ -875,9 +883,26 @@ function openSettings() {
   $('colBgAlphaVal').textContent = s.colBgAlpha + '%';
   $('s_theme').value = state.prefs.theme;
   $('s_showOtherWeek').checked = s.showOtherWeek;
-  $('s_showWeekend').checked = s.showWeekend;
-  $('rowSundayFirst').hidden = !s.showWeekend;
+  $('rowOtherWeekAlpha').hidden = !s.showOtherWeek;
+  $('s_owAlpha').value = s.otherWeekAlpha;
+  $('owAlphaVal').textContent = s.otherWeekAlpha + '%';
+  $('s_headerFs').value = s.headerTextSize;
+  $('headerFsVal').textContent = s.headerTextSize + 'px';
+  $('s_showSaturday').checked = s.showSaturday;
+  $('s_showSunday').checked = s.showSunday;
+  $('rowSundayFirst').hidden = !(s.showSaturday || s.showSunday);
   $('s_sundayFirst').checked = s.sundayFirst;
+  $('s_textFs').value = s.courseTextSize;
+  $('textFsVal').textContent = s.courseTextSize + 'px';
+  $('s_radius').value = s.cornerRadius;
+  $('radiusVal').textContent = s.cornerRadius + 'px';
+  $('s_textHCenter').checked = s.textHCenter;
+  $('s_textVCenter').checked = s.textVCenter;
+  $('s_showTimeInGrid').checked = s.showTimeInGrid;
+  $('s_showTeachInGrid').checked = s.showTeachInGrid;
+  // 预留接口：s_showNoteInGrid / s_gridLines 已挂 UI，渲染逻辑后续版本接入
+  $('s_showNoteInGrid').checked = s.showNoteInGrid;
+  $('s_gridLines').checked = s.gridLines;
   $('s_sameLen').checked = s.sameLen;
   $('s_lessonLen').disabled = !s.sameLen;
   $('btnApplyLen').disabled = !s.sameLen;
@@ -916,8 +941,19 @@ function collectSettings() {
   s.showColBg = $('s_showColBg').checked;
   s.colBgAlpha = Number($('s_colBgAlpha').value);
   s.showOtherWeek = $('s_showOtherWeek').checked;
-  s.showWeekend = $('s_showWeekend').checked;
+  s.otherWeekAlpha = Number($('s_owAlpha').value);
+  s.headerTextSize = Number($('s_headerFs').value);
+  s.showSaturday = $('s_showSaturday').checked;
+  s.showSunday = $('s_showSunday').checked;
   s.sundayFirst = $('s_sundayFirst').checked;
+  s.courseTextSize = Number($('s_textFs').value);
+  s.cornerRadius = Number($('s_radius').value);
+  s.textHCenter = $('s_textHCenter').checked;
+  s.textVCenter = $('s_textVCenter').checked;
+  s.showTimeInGrid = $('s_showTimeInGrid').checked;
+  s.showTeachInGrid = $('s_showTeachInGrid').checked;
+  s.showNoteInGrid = $('s_showNoteInGrid').checked;
+  s.gridLines = $('s_gridLines').checked;
   s.sameLen = $('s_sameLen').checked;
   s.times = cur.times.map(t => ({ ...t }));
   document.querySelectorAll('#timeTable input[data-ti]').forEach(inp => {
@@ -1303,9 +1339,18 @@ function bindEvents() {
     $('btnApplyLen').disabled = !e.target.checked;
     buildTimeTable();
   };
-  $('s_showWeekend').onchange = (e) => {
-    $('rowSundayFirst').hidden = !e.target.checked;
+  const syncSundayFirstRow = () => {
+    $('rowSundayFirst').hidden = !$('s_showSaturday').checked && !$('s_showSunday').checked;
   };
+  $('s_showSaturday').onchange = syncSundayFirstRow;
+  $('s_showSunday').onchange = syncSundayFirstRow;
+  $('s_showOtherWeek').onchange = (e) => {
+    $('rowOtherWeekAlpha').hidden = !e.target.checked;
+  };
+  $('s_owAlpha').oninput = (e) => $('owAlphaVal').textContent = e.target.value + '%';
+  $('s_headerFs').oninput = (e) => $('headerFsVal').textContent = e.target.value + 'px';
+  $('s_textFs').oninput = (e) => $('textFsVal').textContent = e.target.value + 'px';
+  $('s_radius').oninput = (e) => $('radiusVal').textContent = e.target.value + 'px';
   $('btnApplyLen').onclick = () => {
     const len = Number($('s_lessonLen').value) || 45;
     document.querySelectorAll('#timeTable .time-row').forEach(row => {

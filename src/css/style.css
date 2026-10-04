@@ -161,7 +161,7 @@ select option { color: #26282e; }
   display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
   padding-top: 2px; gap: 0;
 }
-.day-header .day-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.day-header .day-name { font-size: var(--header-fs, 13px); font-weight: 600; color: var(--text); }
 .day-header .day-date { font-size: 11px; color: var(--text-2); margin-top: 1px; }
 .day-header.is-today .day-name { color: var(--today); font-weight: 800; }
 .day-header.is-today .day-date {
@@ -240,7 +240,11 @@ select option { color: #26282e; }
   white-space: nowrap;
   opacity: 0.95;
 }
-.course-block.other-week { filter: grayscale(1) opacity(0.5); }
+.course-block.other-week { filter: grayscale(1) opacity(var(--ow-alpha, 0.5)); }
+/* 格子文字对齐开关（设置驱动） */
+.course-block.txt-hcenter { text-align: center; align-items: center; }
+.course-block.txt-vcenter { justify-content: center; }
+.course-block .course-sec { font-size: 0.82em; opacity: 0.85; }
 
 /* 空状态 */
 .empty-tip {
@@ -647,6 +651,13 @@ input[type="range"]::-webkit-slider-thumb {
 .set-name-card .cf-row input { font-size: 14px; }
 
 .set-group { font-size: 12px; color: var(--text-2); margin: 14px 2px 6px; }
+.set-sub {
+  font-size: 11.5px; font-weight: 700; color: var(--indigo);
+  letter-spacing: 0.5px;
+  margin: 10px 0 2px; padding-top: 8px;
+  border-top: 1px solid var(--grid-line);
+}
+.set-sub:first-child { margin-top: 4px; border-top: none; padding-top: 2px; }
 .set-card {
   background: var(--input-bg);
   border-radius: 14px;

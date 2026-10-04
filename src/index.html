@@ -238,6 +238,37 @@
 
         <div class="set-group">课表外观</div>
         <div class="set-card">
+          <div class="set-sub">型体</div>
+          <div class="set-row">
+            <span class="sr-label">表头文字大小</span>
+            <div class="sr-ctrl"><input type="range" id="s_headerFs" min="10" max="16" step="1"><span class="sr-val" id="headerFsVal"></span></div>
+          </div>
+          <div class="set-row">
+            <span class="sr-label">显示周六</span>
+            <div class="sr-ctrl"><input type="checkbox" id="s_showSaturday"></div>
+          </div>
+          <div class="set-row">
+            <span class="sr-label">显示周日</span>
+            <div class="sr-ctrl"><input type="checkbox" id="s_showSunday"></div>
+          </div>
+          <div class="set-row" id="rowSundayFirst">
+            <span class="sr-label">周日为每周第一天</span>
+            <div class="sr-ctrl"><input type="checkbox" id="s_sundayFirst"></div>
+          </div>
+          <div class="set-row">
+            <span class="sr-label">显示非本周课程</span>
+            <div class="sr-ctrl"><input type="checkbox" id="s_showOtherWeek"></div>
+          </div>
+          <div class="set-row" id="rowOtherWeekAlpha">
+            <span class="sr-label">非本周不透明度</span>
+            <div class="sr-ctrl"><input type="range" id="s_owAlpha" min="10" max="100" step="5"><span class="sr-val" id="owAlphaVal"></span></div>
+          </div>
+          <div class="set-row">
+            <span class="sr-label">显示网格辅助线</span>
+            <div class="sr-ctrl"><input type="checkbox" id="s_gridLines"></div>
+          </div>
+
+          <div class="set-sub">课程格子</div>
           <div class="set-row">
             <span class="sr-label">课程块不透明度</span>
             <div class="sr-ctrl"><input type="range" id="s_alpha" min="10" max="100" step="1"><span class="sr-val" id="alphaVal"></span></div>
@@ -247,13 +278,35 @@
             <div class="sr-ctrl"><input type="range" id="s_itemHeight" min="40" max="90" step="2"><span class="sr-val" id="heightVal"></span></div>
           </div>
           <div class="set-row">
-            <span class="sr-label">显示列衬底</span>
-            <div class="sr-ctrl"><input type="checkbox" id="s_showColBg"></div>
+            <span class="sr-label">格子圆角</span>
+            <div class="sr-ctrl"><input type="range" id="s_radius" min="0" max="16" step="1"><span class="sr-val" id="radiusVal"></span></div>
           </div>
-          <div class="set-row" id="rowColBgAlpha">
-            <span class="sr-label">衬底不透明度</span>
-            <div class="sr-ctrl"><input type="range" id="s_colBgAlpha" min="10" max="100" step="5"><span class="sr-val" id="colBgAlphaVal"></span></div>
+          <div class="set-row">
+            <span class="sr-label">格子文字大小</span>
+            <div class="sr-ctrl"><input type="range" id="s_textFs" min="9" max="16" step="1"><span class="sr-val" id="textFsVal"></span></div>
           </div>
+          <div class="set-row">
+            <span class="sr-label">格子文字水平居中</span>
+            <div class="sr-ctrl"><input type="checkbox" id="s_textHCenter"></div>
+          </div>
+          <div class="set-row">
+            <span class="sr-label">格子文字垂直居中</span>
+            <div class="sr-ctrl"><input type="checkbox" id="s_textVCenter"></div>
+          </div>
+          <div class="set-row">
+            <span class="sr-label">在格子内显示上课节次</span>
+            <div class="sr-ctrl"><input type="checkbox" id="s_showTimeInGrid"></div>
+          </div>
+          <div class="set-row">
+            <span class="sr-label">在格子内显示教师</span>
+            <div class="sr-ctrl"><input type="checkbox" id="s_showTeachInGrid"></div>
+          </div>
+          <div class="set-row">
+            <span class="sr-label">在格子内显示备注</span>
+            <div class="sr-ctrl"><input type="checkbox" id="s_showNoteInGrid"></div>
+          </div>
+
+          <div class="set-sub">通用</div>
           <div class="set-row">
             <span class="sr-label">主题</span>
             <div class="sr-ctrl">
@@ -264,16 +317,12 @@
             </div>
           </div>
           <div class="set-row">
-            <span class="sr-label">显示非本周课程</span>
-            <div class="sr-ctrl"><input type="checkbox" id="s_showOtherWeek"></div>
+            <span class="sr-label">显示列衬底</span>
+            <div class="sr-ctrl"><input type="checkbox" id="s_showColBg"></div>
           </div>
-          <div class="set-row">
-            <span class="sr-label">显示周末</span>
-            <div class="sr-ctrl"><input type="checkbox" id="s_showWeekend"></div>
-          </div>
-          <div class="set-row" id="rowSundayFirst">
-            <span class="sr-label">周日为每周第一天</span>
-            <div class="sr-ctrl"><input type="checkbox" id="s_sundayFirst"></div>
+          <div class="set-row" id="rowColBgAlpha">
+            <span class="sr-label">衬底不透明度</span>
+            <div class="sr-ctrl"><input type="range" id="s_colBgAlpha" min="10" max="100" step="5"><span class="sr-val" id="colBgAlphaVal"></span></div>
           </div>
         </div>
       </div>
