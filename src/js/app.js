@@ -990,6 +990,7 @@ function openSettings() {
   cnSel.innerHTML = '';
   for (let i = 8; i <= 16; i++) cnSel.innerHTML += `<option value="${i}">${i} 节</option>`;
   cnSel.value = s.classNum;
+  cnSel.onchange = (e) => buildTimeTable(Number(e.target.value)); // 节数变化即时同步时间表（保留已填值）
   $('s_alpha').value = s.alpha;
   $('alphaVal').textContent = s.alpha + '%';
   $('s_itemHeight').value = s.itemHeight;
@@ -1027,22 +1028,32 @@ function openSettings() {
   const [sh, sm] = s.times[0].start.split(':').map(Number);
   const [eh, em] = s.times[0].end.split(':').map(Number);
   $('s_lessonLen').value = (eh * 60 + em) - (sh * 60 + sm);
+  $('timeTable').innerHTML = ''; // 清空上一次会话残留（未保存的修改随取消丢弃）
   buildTimeTable();
   openModal('settingsModal');
 }
 
-function buildTimeTable() {
+function buildTimeTable(count) {
   const s = currentSettings();
+  const n = Number(count) || s.classNum;
   const box = $('timeTable');
+  // 保留当前已填/已同步的时间（改节数、切换等长时不回退），去留在保存/取消时确定
+  const prev = {};
+  box.querySelectorAll('input[data-ti]').forEach(inp => {
+    prev[inp.dataset.ti + ':' + inp.dataset.field] = inp.value;
+  });
   box.innerHTML = '';
-  for (let i = 0; i < s.classNum; i++) {
+  for (let i = 0; i < n; i++) {
+    const t = s.times[i] || { start: '08:00', end: '08:45' };
+    const start = (i + ':start') in prev ? prev[i + ':start'] : t.start;
+    const end = (i + ':end') in prev ? prev[i + ':end'] : t.end;
     const row = document.createElement('div');
     row.className = 'time-row';
     row.innerHTML = `
       <span class="t-no">${i + 1}</span>
-      <input type="time" value="${s.times[i].start}" data-ti="${i}" data-field="start">
+      <input type="time" value="${start}" data-ti="${i}" data-field="start">
       <span class="t-sep">~</span>
-      <input type="time" value="${s.times[i].end}" data-ti="${i}" data-field="end" ${s.sameLen ? 'disabled' : ''}>
+      <input type="time" value="${end}" data-ti="${i}" data-field="end" ${s.sameLen ? 'disabled' : ''}>
     `;
     box.appendChild(row);
   }
@@ -1491,9 +1502,12 @@ function bindEvents() {
   };
   $('s_colBgAlpha').oninput = (e) => $('colBgAlphaVal').textContent = e.target.value + '%';
   $('s_sameLen').onchange = (e) => {
+    // 只切换结束时间可编辑状态，不重建表格——已同步的时间保留供修改
     $('s_lessonLen').disabled = !e.target.checked;
     $('btnApplyLen').disabled = !e.target.checked;
-    buildTimeTable();
+    document.querySelectorAll('#timeTable input[data-field="end"]').forEach(inp => {
+      inp.disabled = e.target.checked;
+    });
   };
   const syncSundayFirstRow = () => {
     $('rowSundayFirst').hidden = !$('s_showSunday').checked;
