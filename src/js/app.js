@@ -64,18 +64,54 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
 
+// 自动配色的随机池：仅含均匀分布在色环上的基础色（红橙黄绿蓝紫）
+const RANDOM_COLORS = ['#e85454', '#e8933c', '#d9b83c', '#5aa66a', '#4a83c9', '#8a63d2'];
+
 function effectiveColorIndex(c) {
   if (typeof c.color === 'number' && c.color >= 0 && c.color <= 9) return c.color;
   const code = c.name ? c.name.charCodeAt(0) : NaN;
-  return isNaN(code) ? 9 : code % 10; // 原版逻辑：课程名首字 %10
+  return isNaN(code) ? 0 : code % RANDOM_COLORS.length; // 自动：课程名首字 hash 到基础随机池
+}
+
+// 课程最终生效颜色（支持自定义 hex / 库色 / 自动随机池）
+function courseHex(c) {
+  if (typeof c.color === 'string' && /^#[0-9a-f]{6}$/.test(c.color)) return c.color;
+  if (typeof c.color === 'number' && c.color >= 0) return COURSE_COLORS[c.color];
+  const code = c.name ? c.name.charCodeAt(0) : NaN;
+  return isNaN(code) ? RANDOM_COLORS[0] : RANDOM_COLORS[code % RANDOM_COLORS.length];
 }
 
 function hexToRgb(hex) {
   return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
 }
+
+function rgbToHex(r, g, b) {
+  return '#' + [r, g, b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+}
+
+function hexToHsv(hex) {
+  const [r, g, b] = hexToRgb(hex).map(v => v / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  let h = 0;
+  if (d > 0) {
+    if (max === r) h = ((g - b) / d) % 6;
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    h = Math.round(h * 60);
+    if (h < 0) h += 360;
+  }
+  return { h, s: max === 0 ? 0 : d / max, v: max };
+}
+
+function hsvToHex(h, s, v) {
+  const c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c;
+  let [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return rgbToHex((r + m) * 255, (g + m) * 255, (b + m) * 255);
+}
+
 // 课程块样式：颜色按透明度叠在页面底色上，按混合亮度自动取黑/白文字
 function courseBlockStyle(c) {
-  const [r, g, b] = hexToRgb(COURSE_COLORS[effectiveColorIndex(c)]);
+  const [r, g, b] = hexToRgb(courseHex(c));
   const card = state.prefs.theme === 'dark' ? [42, 46, 55] : [250, 250, 253];
   const a = currentSettings().alpha / 100;
   const blend = [r, g, b].map((ch, i) => Math.round(ch * a + card[i] * (1 - a)));
@@ -308,7 +344,7 @@ function slotTimeText(sl) {
 }
 
 function renderCourseDetail(c, slot) {
-  const color = COURSE_COLORS[effectiveColorIndex(c)];
+  const color = courseHex(c);
   const conflicts = C.conflictsOf(allEntries(), c.id, slot ? slot.id : null);
 
   const slotBlocks = c.timeSlots.map(sl => {
@@ -348,9 +384,95 @@ function fillCourseForm(c) {
   $('f_name').value = c.name;
   $('f_credit').value = (c.credit === null || c.credit === undefined) ? '' : c.credit;
   $('f_note').value = c.note || '';
+  pickedColor = typeof c.color === 'number' ? c.color
+    : (typeof c.color === 'string' && /^#[0-9a-f]{6}$/.test(c.color) ? c.color : -1);
   $('colorPick').hidden = true;
-  buildColorPick(typeof c.color === 'number' ? c.color : -1);
+  $('customColorRow').hidden = true;
+  updateColorToggle();
   renderSlotCards(c.timeSlots);
+}
+
+// 「点击修改颜色」按钮：文字与图标颜色实时反映当前生效颜色
+function pickedHex() {
+  if (typeof pickedColor === 'string') return pickedColor;
+  if (typeof pickedColor === 'number' && pickedColor >= 0) return COURSE_COLORS[pickedColor];
+  const name = $('f_name').value.trim();
+  const code = name ? name.charCodeAt(0) : NaN;
+  return isNaN(code) ? RANDOM_COLORS[0] : RANDOM_COLORS[code % RANDOM_COLORS.length];
+}
+
+function updateColorToggle() {
+  $('btnToggleColor').style.color = pickedHex();
+}
+
+// 色板：库中 10 色 + 最右自定义按钮
+function buildColorPick() {
+  const box = $('colorPick');
+  box.innerHTML = '';
+  COURSE_COLORS.forEach((hex, i) => {
+    const sw = document.createElement('div');
+    sw.className = 'color-swatch' + (pickedColor === i ? ' selected' : '');
+    sw.style.background = hex;
+    sw.title = `颜色 ${i + 1}`;
+    sw.onclick = () => {
+      pickedColor = i;
+      $('customColorRow').hidden = true;
+      updateColorToggle();
+      buildColorPick();
+    };
+    box.appendChild(sw);
+  });
+  const custom = document.createElement('div');
+  custom.className = 'color-swatch custom' + (typeof pickedColor === 'string' ? ' selected' : '');
+  custom.title = '自定义颜色';
+  custom.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 1 1 9-9c0 2-1.5 3-3 3h-1.8a2.2 2.2 0 0 0-1.6 3.7c.5.6.4 1.6-.4 2a8.8 8.8 0 0 1-2.2.3z"/><circle cx="7.8" cy="10.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="12" cy="7.8" r="1.1" fill="currentColor" stroke="none"/><circle cx="16.2" cy="10.5" r="1.1" fill="currentColor" stroke="none"/></svg>';
+  custom.onclick = () => {
+    const row = $('customColorRow');
+    if (row.hidden) openCustomPicker(pickedHex());
+    else row.hidden = true;
+  };
+  box.appendChild(custom);
+}
+
+// ---------- 自定义取色器（SV 方块 + 色相条，仿新版 WakeUp） ----------
+const cpCtx = { h: 30, s: 1, v: 1, editing: false };
+
+function openCustomPicker(hex) {
+  const { h, s, v } = hexToHsv(hex);
+  Object.assign(cpCtx, { h, s, v });
+  $('customColorRow').hidden = false;
+  renderCustomPicker();
+}
+
+function renderCustomPicker() {
+  const { h, s, v } = cpCtx;
+  $('cpSv').style.background =
+    `linear-gradient(to top, #000, rgba(0,0,0,0)), linear-gradient(to right, #fff, hsl(${h}, 100%, 50%))`;
+  $('cpDot').style.left = (s * 100) + '%';
+  $('cpDot').style.top = ((1 - v) * 100) + '%';
+  $('cpDot').style.background = hsvToHex(h, s, v);
+  $('cpHueDot').style.left = (h / 360 * 100) + '%';
+  $('cpHueDot').style.background = `hsl(${h}, 100%, 50%)`;
+  const hex = hsvToHex(h, s, v);
+  $('ccHex').value = hex.slice(1).toUpperCase();
+  $('ccPreview').style.background = hex;
+}
+
+function bindPickerDrag(el, onmove) {
+  const apply = (e) => {
+    const r = el.getBoundingClientRect();
+    onmove(
+      Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)),
+      Math.max(0, Math.min(1, (e.clientY - r.top) / r.height))
+    );
+  };
+  el.addEventListener('pointerdown', (e) => {
+    el.setPointerCapture(e.pointerId);
+    cpCtx.editing = true;
+    apply(e);
+  });
+  el.addEventListener('pointermove', (e) => { if (cpCtx.editing) apply(e); });
+  el.addEventListener('pointerup', () => { cpCtx.editing = false; });
 }
 
 // ---------- 时间段卡片 ----------
@@ -730,27 +852,6 @@ function bindDeleteScopeButtons() {
   };
 }
 
-// ---------- 颜色选择 ----------
-function buildColorPick(selected) {
-  pickedColor = selected;
-  const box = $('colorPick');
-  box.innerHTML = '';
-  const auto = document.createElement('div');
-  auto.className = 'color-swatch auto' + (selected === -1 ? ' selected' : '');
-  auto.title = '自动（按课程名分配）';
-  auto.textContent = 'A';
-  auto.onclick = () => buildColorPick(-1);
-  box.appendChild(auto);
-  COURSE_COLORS.forEach((hex, i) => {
-    const sw = document.createElement('div');
-    sw.className = 'color-swatch' + (selected === i ? ' selected' : '');
-    sw.style.background = hex;
-    sw.title = `颜色 ${i + 1}`;
-    sw.onclick = () => buildColorPick(i);
-    box.appendChild(sw);
-  });
-}
-
 // ---------- 弹窗开关 ----------
 function openModal(id) { $(id).hidden = false; }
 function closeModal(id) { $(id).hidden = true; }
@@ -884,7 +985,6 @@ function openSettings() {
   $('rowColBgAlpha').hidden = !s.showColBg;
   $('s_colBgAlpha').value = s.colBgAlpha;
   $('colBgAlphaVal').textContent = s.colBgAlpha + '%';
-  $('s_theme').value = state.prefs.theme;
   $('s_showOtherWeek').checked = s.showOtherWeek;
   $('rowOtherWeekAlpha').hidden = !s.showOtherWeek;
   $('s_owAlpha').value = s.otherWeekAlpha;
@@ -975,8 +1075,6 @@ function saveSettings() {
   const oldTermStart = sch.settings.termStart;
   sch.name = $('s_scheduleName').value.trim() || sch.name;
   sch.settings = M.normalizeSettings(collectSettings());
-  state.prefs.theme = $('s_theme').value;
-  document.documentElement.dataset.theme = state.prefs.theme;
 
   viewWeek = Math.min(sch.settings.totalWeeks, Math.max(1, viewWeek));
   if (oldTermStart !== sch.settings.termStart) {
@@ -999,8 +1097,15 @@ function toggleTheme() {
   render();
 }
 
+const THEME_ICONS = {
+  moon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 14.5A8.5 8.5 0 1 1 9.5 3.5a7 7 0 0 0 11 11z"/></svg>',
+  sun: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>'
+};
+
 function updateThemeToggleLabel() {
-  $('btnThemeToggle').textContent = state.prefs.theme === 'dark' ? '浅色模式' : '夜间模式';
+  const dark = state.prefs.theme === 'dark';
+  $('pfThemeIco').innerHTML = dark ? THEME_ICONS.sun : THEME_ICONS.moon;
+  $('pfThemeTxt').textContent = dark ? '日间模式' : '夜间模式';
 }
 
 function openTodayModal() {
@@ -1200,22 +1305,13 @@ function bindEvents() {
   $('btnAdd').onclick = () => openCourseModal('add', null, null);
   $('fabAdd').onclick = () => openCourseModal('add', null, null);
 
-  // 更多菜单
-  $('moreMenu').addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-act]');
-    if (!b) return;
-    $('moreMenu').hidden = true;
-    const act = b.dataset.act;
-    if (act === 'settings') openSettings();
-    else if (act === 'today') openTodayModal();
-    else if (act === 'backtoday') setViewWeek(Math.max(1, calcCurrentWeek()));
-    else if (act === 'theme') toggleTheme();
-  });
+  // 周数面板功能宫格（保留 4 槽位，当前仅右侧两项）
+  $('btnPanelTheme').onclick = () => toggleTheme();
+  $('btnPanelSettings').onclick = () => openSettings();
 
   // 导入/导出菜单
   $('btnExport').onclick = (e) => { e.stopPropagation(); toggleMenu('exportMenu'); };
   $('btnImport').onclick = (e) => { e.stopPropagation(); toggleMenu('importMenu'); };
-  $('btnMore').onclick = (e) => { e.stopPropagation(); toggleMenu('moreMenu'); };
   $('exportMenu').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-act]');
     if (!b) return;
@@ -1305,7 +1401,38 @@ function bindEvents() {
   };
 
   // 课程表单杂项
-  $('btnToggleColor').onclick = () => { $('colorPick').hidden = !$('colorPick').hidden; };
+  // 颜色选择：按钮（颜色即时反映）→ 色板（库 10 色 + 自定义）→ SV 取色器
+  $('btnToggleColor').onclick = () => {
+    const pick = $('colorPick');
+    if (pick.hidden) { buildColorPick(); pick.hidden = false; }
+    else { pick.hidden = true; $('customColorRow').hidden = true; }
+  };
+  bindPickerDrag($('cpSv'), (x, y) => {
+    cpCtx.s = x; cpCtx.v = 1 - y;
+    renderCustomPicker();
+  });
+  bindPickerDrag($('cpHue'), (x) => {
+    cpCtx.h = Math.round(x * 360) % 360;
+    renderCustomPicker();
+  });
+  $('ccHex').oninput = (e) => {
+    const v = e.target.value.trim();
+    if (/^[0-9a-fA-F]{6}$/.test(v)) {
+      Object.assign(cpCtx, hexToHsv('#' + v));
+      renderCustomPicker();
+    }
+  };
+  $('btnCpCancel').onclick = () => { $('customColorRow').hidden = true; };
+  $('btnCpOk').onclick = () => {
+    pickedColor = hsvToHex(cpCtx.h, cpCtx.s, cpCtx.v);
+    $('customColorRow').hidden = true;
+    updateColorToggle();
+    buildColorPick();
+    showToast('颜色已应用');
+  };
+  $('f_name').addEventListener('input', () => {
+    if (pickedColor === -1) updateColorToggle(); // 自动配色随课程名实时变
+  });
   $('btnCancelCourse').onclick = () => closeModal('courseModal');
 
   $('btnEditCourse').onclick = () => {

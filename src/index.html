@@ -48,18 +48,6 @@
           <button data-act="qr">QR 码 / 文本口令…</button>
         </div>
       </div>
-      <div class="menu-wrap">
-        <button type="button" class="tb-icon" id="btnMore" title="更多">
-          <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
-        </button>
-        <div class="dropdown" id="moreMenu" hidden>
-          <button data-act="settings">课表设置</button>
-          <button data-act="today">今日课程</button>
-          <button data-act="backtoday">回到本周</button>
-          <div class="dd-line"></div>
-          <button data-act="theme" id="btnThemeToggle">夜间模式</button>
-        </div>
-      </div>
     </div>
   </header>
 
@@ -81,13 +69,13 @@
   <!-- 模式提示（浏览器模式） -->
   <div class="mode-badge" id="modeBadge" hidden>浏览器模式 · 数据保存在 localStorage</div>
 
-  <!-- 周数 / 课表 面板（底部弹层） -->
+  <!-- 周数 / 课表 面板（底部弹层，含功能宫格） -->
   <div class="modal-overlay sheet-overlay" id="weekPanel" hidden>
     <div class="sheet">
       <div class="sheet-handle"></div>
       <div class="sheet-row-head">
         <span>周数</span>
-        <button type="button" class="link-btn" id="btnBackCurWeek">修改当前周</button>
+        <button type="button" class="link-btn" id="btnBackCurWeek">回到本周</button>
       </div>
       <div class="wp-slider-row">
         <input type="range" id="wpSlider" min="1" max="20" step="1">
@@ -101,6 +89,18 @@
         </span>
       </div>
       <div class="sch-cards" id="schCards"></div>
+      <div class="panel-funcs" id="panelFuncs">
+        <div class="pf-slot" aria-hidden="true"></div>
+        <div class="pf-slot" aria-hidden="true"></div>
+        <button type="button" class="pf-btn" id="btnPanelTheme">
+          <span class="pf-ico" id="pfThemeIco"></span>
+          <span id="pfThemeTxt">夜间模式</span>
+        </button>
+        <button type="button" class="pf-btn" id="btnPanelSettings">
+          <span class="pf-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.08a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56h.08a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.08a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.05z"/></svg></span>
+          <span>课表设置</span>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -109,7 +109,6 @@
     <div class="modal">
       <div class="modal-header">
         <span id="courseModalTitle">课程详情</span>
-        <button class="close-btn" data-close="courseModal">×</button>
       </div>
       <div class="modal-body">
         <div class="course-detail" id="courseDetail"></div>
@@ -119,10 +118,22 @@
             <input type="text" id="f_name" maxlength="30" placeholder="课程名" required>
           </div>
           <button type="button" class="link-btn cf-color-toggle" id="btnToggleColor">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
-            点此更改颜色
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 1 1 9-9c0 2-1.5 3-3 3h-1.8a2.2 2.2 0 0 0-1.6 3.7c.5.6.4 1.6-.4 2a8.8 8.8 0 0 1-2.2.3z"/><circle cx="7.8" cy="10.5" r="1.15" fill="currentColor" stroke="none"/><circle cx="12" cy="7.8" r="1.15" fill="currentColor" stroke="none"/><circle cx="16.2" cy="10.5" r="1.15" fill="currentColor" stroke="none"/></svg>
+            点击修改颜色
           </button>
           <div class="color-pick" id="colorPick" hidden></div>
+          <div class="custom-color-row" id="customColorRow" hidden>
+            <div class="cp-sv" id="cpSv"><span class="cp-dot" id="cpDot"></span></div>
+            <div class="cp-hue" id="cpHue"><span class="cp-dot" id="cpHueDot"></span></div>
+            <div class="cp-foot">
+              <span class="cc-preview" id="ccPreview"></span>
+              <span class="cc-hex">#<input type="text" id="ccHex" maxlength="6" spellcheck="false"></span>
+            </div>
+            <div class="cp-actions">
+              <button type="button" class="link-btn" id="btnCpCancel">取消</button>
+              <button type="button" class="link-btn strong" id="btnCpOk">保存</button>
+            </div>
+          </div>
           <div class="cf-row">
             <span class="cf-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V4"/><path d="M6 5c4-2 8 2 12 0v8.5c-4 2-8-2-12 0"/></svg></span>
             <input type="number" id="f_credit" min="0" max="30" step="0.5" placeholder="学分（可不填）">
@@ -199,7 +210,6 @@
     <div class="modal wide">
       <div class="modal-header">
         <span>课表设置</span>
-        <button class="close-btn" data-close="settingsModal">×</button>
       </div>
       <div class="modal-body">
         <div class="set-name-card">
@@ -209,7 +219,7 @@
           </div>
         </div>
 
-        <div class="set-group">课表数据</div>
+        <div class="set-group">上课时间</div>
         <div class="set-card">
           <div class="set-row">
             <span class="sr-label">开学时间</span>
@@ -239,15 +249,6 @@
         <div class="set-group">课表外观</div>
         <div class="set-card">
           <div class="set-sub">通用</div>
-          <div class="set-row">
-            <span class="sr-label">主题</span>
-            <div class="sr-ctrl">
-              <select id="s_theme">
-                <option value="light">浅色</option>
-                <option value="dark">深色</option>
-              </select>
-            </div>
-          </div>
           <div class="set-row">
             <span class="sr-label">显示列衬底</span>
             <div class="sr-ctrl"><input type="checkbox" id="s_showColBg"></div>
@@ -339,7 +340,6 @@
     <div class="modal">
       <div class="modal-header">
         <span>管理课表</span>
-        <button class="close-btn" data-close="scheduleModal">×</button>
       </div>
       <div class="modal-body">
         <div class="sch-new-row">
@@ -360,7 +360,6 @@
     <div class="modal">
       <div class="modal-header">
         <span id="todayModalTitle">今日课程</span>
-        <button class="close-btn" data-close="todayModal">×</button>
       </div>
       <div class="modal-body">
         <div class="today-list" id="todayList"></div>
@@ -377,7 +376,6 @@
     <div class="modal sm">
       <div class="modal-header">
         <span>分享课表：QR 码 / 口令</span>
-        <button class="close-btn" data-close="qrModal">×</button>
       </div>
       <div class="modal-body">
         <div class="qr-box" id="qrBox"></div>
@@ -399,7 +397,6 @@
     <div class="modal sm">
       <div class="modal-header">
         <span>从文本口令导入</span>
-        <button class="close-btn" data-close="codeImportModal">×</button>
       </div>
       <div class="modal-body">
         <label class="field-label">粘贴以 WU1: 或 WU0: 开头的口令，将作为新课表导入</label>
@@ -418,7 +415,6 @@
     <div class="modal sm">
       <div class="modal-header">
         <span>导入课表</span>
-        <button class="close-btn" data-close="importChoiceModal">×</button>
       </div>
       <div class="modal-body">
         <div class="import-summary" id="importSummary"></div>

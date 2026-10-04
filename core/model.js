@@ -125,9 +125,16 @@
     };
   }
 
-  // color: -1 自动（按课程名首字 %10），0-9 手动；兼容 v1 的字符串色号
+  // color: -1 自动（随机池，按课程名首字 hash），0-9 手动库色，'#rrggbb' 自定义色
   function normalizeColor(v) {
     if (v === undefined || v === null || v === '') return -1;
+    if (typeof v === 'string') {
+      const t = v.trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(t)) return t.toLowerCase();
+      const n = Number(t);
+      if (isNaN(n) || n < 0) return -1;
+      return n % 10;
+    }
     const n = Number(v);
     if (isNaN(n) || n < 0) return -1;
     return n % 10;

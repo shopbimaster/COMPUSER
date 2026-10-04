@@ -348,6 +348,29 @@ select option { color: #26282e; background: #fff; }            /* 浅色下拉�
   margin: 2px auto 12px;
 }
 
+/* 面板底部功能宫格：4 槽位，左侧保留空位便于后续扩展 */
+.panel-funcs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--grid-line);
+}
+.pf-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  padding: 11px 4px 9px;
+  border-radius: 14px;
+  background: var(--input-bg);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+.pf-btn:hover { background: var(--indigo-weak); }
+.pf-btn .pf-ico { width: 21px; height: 21px; display: inline-flex; }
+.pf-btn .pf-ico svg { width: 21px; height: 21px; }
+.pf-slot { border-radius: 14px; min-height: 58px; }
+
 .sheet-row-head {
   display: flex; align-items: center; justify-content: space-between;
   font-size: 14.5px; font-weight: 700;
@@ -407,15 +430,6 @@ input[type="range"]::-webkit-slider-thumb {
   padding: 16px 20px 8px;
   font-size: 16.5px; font-weight: 800;
 }
-.close-btn {
-  width: 30px; height: 30px;
-  font-size: 18px;
-  color: var(--text-2);
-  border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-.close-btn:hover { background: var(--input-bg); color: var(--text); }
-
 .modal-body { padding: 4px 20px 14px; overflow-y: auto; }
 .modal-footer {
   display: flex; align-items: center; gap: 8px;
@@ -488,8 +502,8 @@ input[type="range"]::-webkit-slider-thumb {
 .cf-head input { font-size: 16px; font-weight: 700; flex: 1; border-bottom: 1px solid var(--grid-line); padding: 4px 0; }
 .cf-head input:focus { border-bottom-color: var(--accent); }
 
-.cf-color-toggle { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; }
-.color-pick { display: flex; gap: 8px; flex-wrap: wrap; padding: 8px 2px; }
+.cf-color-toggle { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.color-pick { display: flex; gap: 9px; flex-wrap: wrap; padding: 10px 2px 4px; }
 .color-swatch {
   width: 28px; height: 28px;
   border-radius: 50%;
@@ -499,11 +513,61 @@ input[type="range"]::-webkit-slider-thumb {
 }
 .color-swatch:hover { transform: scale(1.12); }
 .color-swatch.selected { border-color: var(--indigo); transform: scale(1.12); }
-.color-swatch.auto {
-  background: conic-gradient(#e8935a, #9b7fd4, #e088ac, #5fa284, #6c9bd9, #d8739e, #e8935a);
+.color-swatch.custom {
+  background: var(--input-bg);
+  border: 1.5px dashed var(--text-2);
   display: flex; align-items: center; justify-content: center;
-  font-size: 11px; font-weight: 700; color: #fff; text-shadow: 0 0 3px rgba(0,0,0,0.4);
+  color: var(--text-2);
 }
+.color-swatch.custom.selected { border: 2.5px solid var(--indigo); color: var(--indigo); }
+
+/* 自定义取色器：SV 明暗方块 + 色相条 + hex（仿新版 WakeUp） */
+.custom-color-row { display: flex; flex-direction: column; gap: 12px; padding: 10px 2px 6px; }
+.cp-sv {
+  position: relative;
+  height: 120px;
+  border-radius: 12px;
+  cursor: crosshair;
+  overflow: hidden;
+  touch-action: none;
+}
+.cp-hue {
+  position: relative;
+  height: 14px;
+  border-radius: 7px;
+  cursor: pointer;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  touch-action: none;
+}
+.cp-dot {
+  position: absolute;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  border: 2.5px solid #fff;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.45);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.cp-foot { display: flex; align-items: center; gap: 12px; }
+.cc-preview {
+  width: 44px; height: 30px;
+  border-radius: 8px;
+  background: var(--card);
+  border: 1px solid var(--grid-line);
+  flex-shrink: 0;
+}
+.cc-hex { display: inline-flex; align-items: center; gap: 4px; color: var(--text-2); font-size: 14px; }
+.cc-hex input {
+  width: 88px;
+  background: var(--card);
+  border-radius: 8px;
+  padding: 6px 9px;
+  font-size: 14px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.cp-actions { display: flex; justify-content: space-around; gap: 20px; }
+.cp-actions .link-btn { font-size: 14px; padding: 6px 22px; }
 
 .cf-row { display: flex; align-items: center; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--grid-line); }
 .cf-row .cf-ico { font-size: 15px; width: 22px; text-align: center; flex-shrink: 0; }
