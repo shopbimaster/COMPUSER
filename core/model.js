@@ -38,6 +38,8 @@
     showWeekend: true,      // 兼容旧字段：关闭 → showSaturday/showSunday 均 false
     showSaturday: true,     // 显示周六列
     showSunday: true,       // 显示周日列
+    showSchName: true,      // 课表上方居中显示课表名
+    showWeekTitle: true,    // 顶栏显示周序数
     headerTextSize: 13,     // 表头星期文字大小 10-16
     showColBg: true,        // 日列衬底（仿 v1.1：整列铺卡片色，列间缝隙形成分隔）
     colBgAlpha: 100,        // 衬底不透明度 10-100
@@ -77,6 +79,8 @@
     s.showSaturday = weekendOff ? false : (s.showSaturday !== false && s.showSaturday !== 'false');
     s.showSunday = weekendOff ? false : (s.showSunday !== false && s.showSunday !== 'false');
     s.headerTextSize = clamp(Number(s.headerTextSize) || 13, 10, 16);
+    s.showSchName = s.showSchName !== false && s.showSchName !== 'false';
+    s.showWeekTitle = s.showWeekTitle !== false && s.showWeekTitle !== 'false';
     s.showColBg = s.showColBg !== false && s.showColBg !== 'false';
     s.colBgAlpha = clamp(Number(s.colBgAlpha) || 100, 10, 100);
     s.sundayFirst = !!s.sundayFirst;

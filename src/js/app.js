@@ -268,10 +268,16 @@ function weekStatusText() {
 function updateWeekUI() {
   $('weekLabel').textContent = `第 ${viewWeek} 周`;
   $('weekStatus').textContent = weekStatusText();
+  // 标题行：课表名（大）+ 周序数（小）同行，均可设置关闭；两项全关仅剩切周箭头
+  const s = currentSettings();
+  const name = $('schName');
+  name.textContent = currentSchedule().name;
+  name.hidden = !s.showSchName;
+  $('weekTitleSpan').hidden = !s.showWeekTitle;
   const d = new Date();
   $('todayInfo').textContent = `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
   const slider = $('wpSlider');
-  slider.max = currentSettings().totalWeeks;
+  slider.max = s.totalWeeks;
   slider.value = viewWeek;
   $('wpVal').textContent = `第${viewWeek}周`;
   renderSchCards();
@@ -993,6 +999,8 @@ function openSettings() {
   $('s_colBgAlpha').value = s.colBgAlpha;
   $('colBgAlphaVal').textContent = s.colBgAlpha + '%';
   $('s_showOtherWeek').checked = s.showOtherWeek;
+  $('s_showSchName').checked = s.showSchName;
+  $('s_showWeekTitle').checked = s.showWeekTitle;
   $('rowOtherWeekAlpha').hidden = !s.showOtherWeek;
   $('s_owAlpha').value = s.otherWeekAlpha;
   $('owAlphaVal').textContent = s.otherWeekAlpha + '%';
@@ -1051,6 +1059,8 @@ function collectSettings() {
   s.showColBg = $('s_showColBg').checked;
   s.colBgAlpha = Number($('s_colBgAlpha').value);
   s.showOtherWeek = $('s_showOtherWeek').checked;
+  s.showSchName = $('s_showSchName').checked;
+  s.showWeekTitle = $('s_showWeekTitle').checked;
   s.otherWeekAlpha = Number($('s_owAlpha').value);
   s.headerTextSize = Number($('s_headerFs').value);
   s.showSaturday = $('s_showSaturday').checked;
@@ -1316,7 +1326,6 @@ function bindEvents() {
 
   // 添加课程
   $('btnAdd').onclick = () => openCourseModal('add', null, null);
-  $('fabAdd').onclick = () => openCourseModal('add', null, null);
 
   // 周数面板功能宫格（保留 4 槽位，当前仅右侧两项）
   $('btnPanelTheme').onclick = () => toggleTheme();
