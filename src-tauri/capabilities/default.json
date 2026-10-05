@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "默认能力：窗口与核心事件（存储走 WebView localStorage，无需额外插件权限）",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

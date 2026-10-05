@@ -6,7 +6,10 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test core/test/*.test.js",
-    "serve": "npx serve src"
+    "serve": "npx serve src",
+    "prepare-tauri": "node scripts/prepare-tauri.mjs",
+    "apk": "node scripts/prepare-tauri.mjs && npx -y @tauri-apps/cli@latest android build --apk --target aarch64",
+    "release": "powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1"
   },
   "author": "CAMPUSER",
   "license": "MIT",

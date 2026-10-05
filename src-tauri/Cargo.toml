@@ -1,0 +1,18 @@
+[package]
+name = "wakeup-local"
+version = "1.4.0"
+description = "WakeUp 课程表 本地版（Tauri 2 壳）"
+authors = ["CAMPUSER"]
+edition = "2021"
+
+[lib]
+name = "wakeup_local_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

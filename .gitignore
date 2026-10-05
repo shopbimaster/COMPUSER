@@ -4,6 +4,9 @@ dist/
 build/
 *.log
 
+# ---- 发布产物 ----
+release/
+
 # ---- 运行时数据（课表数据与 Electron 便携配置，均属本地状态）----
 data/
 .electron-cache/
