@@ -898,6 +898,54 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--indigo); width
 .dropdown button:hover { background: var(--input-bg); }
 .dropdown .dd-line { height: 1px; background: var(--grid-line); margin: 5px 8px; }
 
+/* 分享方式选择（口令 / JSON / CSV / ICS） */
+.share-choice-list { display: flex; flex-direction: column; gap: 8px; }
+.share-choice {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 14px;
+  background: var(--input-bg);
+  text-align: left;
+  color: var(--text);
+}
+.share-choice:hover { background: var(--indigo-weak); }
+.share-choice .sc-ico {
+  width: 38px; height: 38px;
+  border-radius: 12px;
+  background: var(--card);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  color: var(--indigo);
+}
+.share-choice .sc-ico svg { width: 20px; height: 20px; }
+.share-choice .sc-txt { display: flex; flex-direction: column; gap: 2px; }
+.share-choice .sc-txt b { font-size: 13.5px; }
+.share-choice .sc-txt small { font-size: 11.5px; color: var(--text-2); }
+
+/* 摄像头扫码 */
+.scan-entry {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-bottom: 10px;
+}
+.scan-box {
+  position: relative;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #101216;
+  aspect-ratio: 4 / 3;
+}
+.scan-box video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.scan-hint {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding: 8px 0;
+  text-align: center;
+  font-size: 12px;
+  color: #fff;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent);
+}
+
 /* ============ QR 分享 / 口令导入 ============ */
 .qr-box {
   display: flex; align-items: center; justify-content: center;

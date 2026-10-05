@@ -117,11 +117,8 @@
             </svg>
           </button>
           <div class="dropdown" id="exportMenu" hidden>
-            <button data-act="backup">完整备份 (.json)</button>
-            <button data-act="share-file">分享当前课表 (.json)</button>
-            <button data-act="csv">课程表 CSV (.csv)</button>
-            <button data-act="ics">日历文件 (.ics)</button>
-            <button data-act="qr">QR 码 / 文本口令…</button>
+            <button data-act="share">分享当前课表…</button>
+            <button data-act="backup-all">导出全部课表 (.json)</button>
           </div>
         </div>
         <button type="button" class="tb-icon" id="btnMore" title="课表 / 功能">
@@ -762,6 +759,122 @@
       </div>
     </div>
 
+    <!-- 分享当前课表：文件类型选择 -->
+    <div class="modal-overlay" id="shareChoiceModal" hidden>
+      <div class="modal sm">
+        <div class="modal-header">
+          <span>分享当前课表</span>
+        </div>
+        <div class="modal-body">
+          <div class="share-choice-list">
+            <button type="button" class="share-choice" data-share="qr">
+              <span class="sc-ico"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
+                  <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" />
+                  <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
+                  <path
+                    d="M13.5 13.5h3v3h-3zM20.5 13.5v7h-7M20.5 17.5v3"
+                  /></svg
+              ></span>
+              <span class="sc-txt"
+                ><b>口令分享</b
+                ><small>生成二维码 / 文本口令，对方扫码或粘贴导入</small></span
+              >
+            </button>
+            <button type="button" class="share-choice" data-share="json">
+              <span class="sc-ico"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"
+                  />
+                  <path d="M14 3v5h5" /></svg
+              ></span>
+              <span class="sc-txt"
+                ><b>保存为 JSON</b
+                ><small>完整课表数据文件，可被同类应用导入</small></span
+              >
+            </button>
+            <button type="button" class="share-choice" data-share="csv">
+              <span class="sc-ico"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+                  <path d="M3.5 9.5h17M9.5 4.5v15M3.5 14.5h17" /></svg
+              ></span>
+              <span class="sc-txt"
+                ><b>保存为 CSV</b
+                ><small>Excel 模板格式，可用表格软件编辑后再导入</small></span
+              >
+            </button>
+            <button type="button" class="share-choice" data-share="ics">
+              <span class="sc-ico"
+                ><svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="3.5" y="5" width="17" height="15.5" rx="2.5" />
+                  <path d="M3.5 9.5h17M8 3v4M16 3v4" /></svg
+              ></span>
+              <span class="sc-txt"
+                ><b>保存为 ICS</b
+                ><small>日历文件，导入系统日历按周重复提醒</small></span
+              >
+            </button>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <span class="flex-sp"></span>
+          <button class="pill-btn" data-close="shareChoiceModal">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 摄像头扫码 -->
+    <div class="modal-overlay" id="scanModal" hidden>
+      <div class="modal sm">
+        <div class="modal-header">
+          <span>扫码识别口令</span>
+        </div>
+        <div class="modal-body">
+          <div class="scan-box">
+            <video id="scanVideo" autoplay playsinline muted></video>
+            <div class="scan-hint" id="scanHint">将二维码对准取景框</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <span class="flex-sp"></span>
+          <button class="pill-btn" id="btnStopScan" data-close="scanModal">
+            停止
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 口令导入弹窗 -->
     <div class="modal-overlay" id="codeImportModal" hidden>
       <div class="modal sm">
@@ -769,6 +882,23 @@
           <span>从文本口令导入</span>
         </div>
         <div class="modal-body">
+          <button type="button" class="pill-btn scan-entry" id="btnScanCode">
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="3.5" y="6.5" width="17" height="12.5" rx="2" />
+              <circle cx="12" cy="12.5" r="3.2" />
+              <path d="M8 6.5V4.5h8v2" />
+            </svg>
+            摄像头扫码
+          </button>
           <label class="field-label"
             >粘贴以 WU1: 或 WU0: 开头的口令，将作为新课表导入</label
           >
@@ -796,7 +926,7 @@
           </label>
           <label class="switch-label choice-row">
             <input type="radio" name="importMode" value="merge" />
-            合并到现有数据（LWW：双方较新的修改都会保留）
+            合并到现有数据（双方较新的修改都会保留）
           </label>
         </div>
         <div class="modal-footer">

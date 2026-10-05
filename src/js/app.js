@@ -1200,15 +1200,21 @@ async function doExportAction(act) {
   const sch = currentSchedule();
   const base = fileNameSafe(sch.name);
   let where = null;
-  if (act === 'backup') {
+  if (act === 'share') {
+    // 分享当前课表 → 选择分享方式（口令 / JSON / CSV / ICS）
+    openModal('shareChoiceModal');
+    return;
+  }
+  if (act === 'backup-all') {
     where = await Ports.share.send(Bk.serialize(state), `wakeup-backup-${dateStamp()}.json`);
-  } else if (act === 'share-file') {
+  } else if (act === 'share-json') {
     where = await Ports.share.send(Bk.serializeShare(sch), `wakeup-share-${base}.json`);
-  } else if (act === 'csv') {
+  } else if (act === 'share-csv') {
     where = await Ports.share.send(Csv.toCsv(sch), `wakeup-${base}-${dateStamp()}.csv`);
-  } else if (act === 'ics') {
+  } else if (act === 'share-ics') {
     where = await Ports.share.send(Ics.toIcs(sch), `wakeup-${base}-${dateStamp()}.ics`);
-  } else if (act === 'qr') {
+  } else if (act === 'share-qr') {
+    closeModal('shareChoiceModal');
     await openQrModal();
     return;
   }
@@ -1240,6 +1246,48 @@ async function openQrModal() {
 }
 
 let pendingImportState = null;
+
+// ---------- 摄像头扫码（BarcodeDetector + getUserMedia） ----------
+let scanStream = null, scanTimer = null;
+
+function stopScan() {
+  if (scanTimer) { clearInterval(scanTimer); scanTimer = null; }
+  if (scanStream) {
+    scanStream.getTracks().forEach(t => t.stop());
+    scanStream = null;
+  }
+}
+
+async function startScan() {
+  if (!('BarcodeDetector' in window)) {
+    showToast('当前环境不支持扫码识别，请手动粘贴口令');
+    return;
+  }
+  try {
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  } catch (e) {
+    showToast('无法访问摄像头，请检查权限或手动粘贴口令');
+    return;
+  }
+  const video = $('scanVideo');
+  video.srcObject = scanStream;
+  $('scanHint').textContent = '将二维码对准取景框';
+  openModal('scanModal');
+  const detector = new window.BarcodeDetector();
+  scanTimer = setInterval(async () => {
+    if (video.readyState < 2) return;
+    try {
+      const codes = await detector.detect(video);
+      const hit = codes.find(c => /^WU[01]:/.test(c.rawValue || ''));
+      if (hit) {
+        $('codeInput').value = hit.rawValue;
+        stopScan();
+        closeModal('scanModal');
+        showToast('已识别口令，请点击导入');
+      }
+    } catch (e) { /* 单帧失败忽略 */ }
+  }, 350);
+}
 
 async function doImportAction(act) {
   if (act === 'code') {
@@ -1351,6 +1399,18 @@ function bindEvents() {
     $('exportMenu').hidden = true;
     doExportAction(b.dataset.act);
   });
+  // 分享方式选择弹窗
+  $('shareChoiceModal').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-share]');
+    if (!b) return;
+    doExportAction('share-' + b.dataset.share);
+  });
+  // 摄像头扫码入口
+  $('btnScanCode').onclick = () => startScan();
+  // 扫码弹窗关闭（含 Escape/遮罩）时停止摄像头
+  new MutationObserver(() => {
+    if ($('scanModal').hidden) stopScan();
+  }).observe($('scanModal'), { attributes: true, attributeFilter: ['hidden'] });
   $('importMenu').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-act]');
     if (!b) return;
