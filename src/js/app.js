@@ -294,7 +294,7 @@ function render(reflowed) {
   for (let i = 1; i <= s.classNum; i++) {
     const sec = document.createElement("div");
     sec.className = "sec";
-    sec.style.top = (i - 1) * (s.itemHeight + gapPx) + gapPx + "px";
+    sec.style.top = (i - 1) * (s.itemHeight + 2 * gapPx) + gapPx + "px";
     sec.innerHTML = `<span class="sec-no">${i}</span><span>${s.times[i - 1].start}</span><span>${s.times[i - 1].end}</span>`;
     timeCol.appendChild(sec);
   }
@@ -304,6 +304,9 @@ function render(reflowed) {
     const col = document.createElement("div");
     col.className = "day-col";
     col.dataset.day = d;
+    // 衬底长度 = 一日节数网格总高 + 首尾各一个边距（最后一节底部再留 g）
+    col.style.height =
+      s.classNum * s.itemHeight + 2 * s.classNum * gapPx + "px";
 
     const dayEntries = allEntries()
       .filter((e) => e.slot.day === d)
@@ -320,7 +323,7 @@ function render(reflowed) {
       const y = ev.clientY - rect.top - gapPx;
       const sec = Math.max(
         1,
-        Math.min(s.classNum, Math.floor(y / (s.itemHeight + gapPx)) + 1),
+        Math.min(s.classNum, Math.floor(y / (s.itemHeight + 2 * gapPx)) + 1),
       );
       openCourseModal("add", null, null, { day: d, start: sec });
     });
@@ -364,7 +367,7 @@ function buildCourseBlock(e, isCurrent) {
     const dayStart = toMin(s.times[0].start);
     const dayEnd = toMin(s.times[s.classNum - 1].end);
     const span = Math.max(1, dayEnd - dayStart);
-    const totalH = s.classNum * s.itemHeight + (s.classNum - 1) * gapPx;
+    const totalH = s.classNum * s.itemHeight + (s.classNum - 1) * 2 * gapPx;
     top = Math.max(
       0,
       ((toMin(sl.customTime.start) - dayStart) / span) * totalH,
@@ -374,8 +377,9 @@ function buildCourseBlock(e, isCurrent) {
       ((toMin(sl.customTime.end) - toMin(sl.customTime.start)) / span) * totalH,
     );
   } else {
-    top = (sl.start - 1) * (s.itemHeight + gapPx) + gapPx;
-    height = sl.step * s.itemHeight + (sl.step - 1) * gapPx;
+    // 节步进含 2×边距（课程间间隔 = 边距二倍）；首块顶部内缩与块高按同网格对齐
+    top = (sl.start - 1) * (s.itemHeight + 2 * gapPx) + gapPx;
+    height = sl.step * s.itemHeight + (sl.step - 1) * 2 * gapPx;
   }
   el.style.top = top + "px";
   el.style.height = height + "px";
@@ -1139,7 +1143,13 @@ function execDelete(act) {
 
 // ---------- 弹窗开关 ----------
 function openModal(id) {
-  $(id).hidden = false;
+  const m = $(id);
+  m.hidden = false;
+  // 每次打开都回到顶部：上次滚动位置不带入下一次（含所有内层滚动容器）
+  m.scrollTop = 0;
+  m.querySelectorAll("*").forEach((el) => {
+    if (el.scrollTop > 0) el.scrollTop = 0;
+  });
 }
 function closeModal(id) {
   $(id).hidden = true;
@@ -1280,12 +1290,32 @@ function openSettings() {
   $("s_scheduleName").value = currentSchedule().name;
   $("s_termStart").value = s.termStart;
   $("s_totalWeeks").value = s.totalWeeks;
-  const cnSel = $("s_classNum");
-  cnSel.innerHTML = "";
-  for (let i = 8; i <= 16; i++)
-    cnSel.innerHTML += `<option value="${i}">${i} 节</option>`;
-  cnSel.value = s.classNum;
-  cnSel.onchange = (e) => buildTimeTable(Number(e.target.value)); // 节数变化即时同步时间表（保留已填值）
+  // 一天课程节数：自绘下拉（原生 select 展开浮层是系统渲染，无法与整体风格统一）
+  const cnVal = $("s_classNum");
+  cnVal.value = s.classNum;
+  const cnBtn = $("s_classNumBtn");
+  cnBtn.textContent = s.classNum + " 节";
+  const cnMenu = $("s_classNumMenu");
+  cnMenu.innerHTML = [8, 9, 10, 11, 12, 13, 14, 15, 16]
+    .map(
+      (i) =>
+        `<button type="button" data-cn="${i}" class="${i === s.classNum ? "sel" : ""}">${i} 节</button>`,
+    )
+    .join("");
+  cnBtn.onclick = () => {
+    cnMenu.hidden = !cnMenu.hidden;
+  };
+  cnMenu.onclick = (e) => {
+    const b = e.target.closest("button[data-cn]");
+    if (!b) return;
+    cnVal.value = b.dataset.cn;
+    cnBtn.textContent = b.dataset.cn + " 节";
+    cnMenu
+      .querySelectorAll("button")
+      .forEach((x) => x.classList.toggle("sel", x === b));
+    cnMenu.hidden = true;
+    buildTimeTable(Number(b.dataset.cn)); // 节数变化即时同步时间表（保留已填值）
+  };
   $("s_alpha").value = s.alpha;
   $("alphaVal").textContent = s.alpha + "%";
   $("s_itemHeight").value = s.itemHeight;
@@ -1387,6 +1417,8 @@ function collectSettings() {
   s.times = cur.times.map((t) => ({ ...t }));
   document.querySelectorAll("#timeTable input[data-ti]").forEach((inp) => {
     const i = Number(inp.dataset.ti);
+    // 增加节数后时间表行数可能多于当前 times，补默认项防止越界（否则保存会抛错无响应）
+    if (!s.times[i]) s.times[i] = { start: "08:00", end: "08:45" };
     if (inp.value) s.times[i][inp.dataset.field] = inp.value;
   });
   if (s.sameLen) {

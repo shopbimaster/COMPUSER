@@ -344,7 +344,7 @@ select option {
   grid-row: 2;
   position: relative;
   border-radius: 10px;
-  min-height: 100%;
+  /* 高度由 JS 按一日节数网格设置（衬底长度与一日课程数匹配），不再拉满整列 */
   /* 日列衬底（v1.1 风格）：整列铺卡片色，课程格子按「课程格子边距」内缩，
      列间缝隙露出渐变底形成分隔；
      --col-bg-a 由设置（显示列衬底/不透明度）驱动，0 即关闭 */
@@ -1297,6 +1297,8 @@ input[type="range"]::-webkit-slider-thumb {
 .set-row .sr-label {
   font-weight: 600;
   flex-shrink: 0;
+  /* 统一标签宽（容纳最长 7 字标签）：窄屏滑杆收缩后各行仍等长 */
+  width: 96px;
 }
 .set-row .sr-ctrl {
   display: flex;
@@ -1319,8 +1321,38 @@ input[type="range"]::-webkit-slider-thumb {
   border-radius: 8px;
   padding: 5px 9px;
 }
+/* 自绘下拉（替代原生 select：展开浮层无法用 CSS 定制，系统样式与整体不符） */
+.sr-select-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--card);
+  border-radius: 8px;
+  padding: 5px 9px;
+  font-size: 13.5px;
+  color: var(--text);
+}
+.sr-select-btn::after {
+  content: "";
+  border: 4px solid transparent;
+  border-top-color: currentColor;
+  margin-top: 5px;
+}
+.dropdown.dd-sm {
+  /* 宽度已随内容（基类 max-content），这里只限制节数菜单高度滚动 */
+  max-height: 246px;
+  overflow-y: auto;
+}
+.dd-sm button.sel {
+  background: var(--input-bg);
+  font-weight: 700;
+}
 .set-row .sr-ctrl input[type="range"] {
-  width: 150px;
+  /* 覆盖全局 range 的 flex:1（长度随标签文字漂移）：统一 150px，行内右对齐；
+     flex-shrink:1 保底——窄屏行宽不足时等量收缩避免溢出 */
+  flex: 0 1 150px;
+  width: auto;
+  min-width: 0;
 }
 .set-row .sr-val {
   color: var(--indigo);
@@ -1575,7 +1607,9 @@ input[type="radio"] {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  min-width: 200px;
+  /* 宽度随内容（最宽一行文字），不设人为下限；作为整体参与对齐（默认右对齐） */
+  width: max-content;
+  max-width: 80vw;
   background: var(--card);
   border-radius: 16px;
   box-shadow: var(--shadow);
@@ -1586,7 +1620,6 @@ input[type="radio"] {
 .dropdown.align-left {
   left: 0;
   right: auto;
-  min-width: 150px;
 }
 .dropdown button {
   display: block;

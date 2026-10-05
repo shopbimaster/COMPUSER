@@ -487,7 +487,15 @@
             <div class="set-row">
               <span class="sr-label">一天课程节数</span>
               <div class="sr-ctrl">
-                <select id="s_classNum"></select>
+                <span class="menu-wrap sr-select">
+                  <button
+                    type="button"
+                    class="sr-select-btn"
+                    id="s_classNumBtn"
+                  ></button>
+                  <div class="dropdown dd-sm" id="s_classNumMenu" hidden></div>
+                  <input type="hidden" id="s_classNum" />
+                </span>
                 节
               </div>
             </div>
