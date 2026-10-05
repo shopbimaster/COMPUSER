@@ -1,7 +1,7 @@
 /*!
  * WakeUp 课程表本地版 · 领域内核：课程冲突检测（纯函数，零平台依赖）
- * "时间段"(slot) 需含 {day, start, step, startWeek, endWeek, isOdd}
- * isOdd: 0=每周 1=单周 2=双周（v1 平铺课程对象天然 slot 兼容）
+ * "时间段"(slot) 需含 {day, start, step, weeks}（'0'/'1' 位串，唯一真源），
+ * 兼容旧字段 {startWeek, endWeek, isOdd}（0=每周 1=单周 2=双周，v1 平铺课程对象天然 slot 兼容）
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -11,6 +11,8 @@
 
   // 该周是否上这节课（还原原版 ScheduleFragment 判断）
   function slotInWeek(slot, w) {
+    if (typeof slot.weeks === 'string' && slot.weeks) return slot.weeks.charAt(w - 1) === '1';
+    // 旧字段回退（未升级数据）
     if (slot.startWeek > w || slot.endWeek < w) return false;
     if (slot.isOdd === 1 && w % 2 === 0) return false; // 单周课不在双周
     if (slot.isOdd === 2 && w % 2 === 1) return false; // 双周课不在单周
@@ -22,11 +24,10 @@
     return !(a.start > b.start + b.step - 1 || b.start > a.start + a.step - 1);
   }
 
-  // 有效周是否存在交集（考虑单双周奇偶）
+  // 有效周是否存在交集（weeks 位串可有任意空洞，从头扫到两者区间上界）
   function weeksIntersect(a, b) {
-    const lo = Math.max(a.startWeek, b.startWeek);
-    const hi = Math.min(a.endWeek, b.endWeek);
-    for (let w = lo; w <= hi; w++) {
+    const hi = Math.max(Number(a.endWeek) || 1, Number(b.endWeek) || 1);
+    for (let w = 1; w <= hi; w++) {
       if (slotInWeek(a, w) && slotInWeek(b, w)) return true;
     }
     return false;

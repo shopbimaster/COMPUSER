@@ -229,6 +229,9 @@ select option { color: #26282e; background: #fff; }            /* 浅色下拉�
   user-select: none;
 }
 .course-block:hover { filter: brightness(1.06); transform: scale(1.015); z-index: 5; }
+/* 格子文字排版：各行按正常行高排列互不压缩（高度不足由容器下边框截断），
+   长内容超出右边界自动折行 */
+.course-block > * { flex-shrink: 0; max-width: 100%; }
 .course-block .course-tag {
   font-size: 9.5px;
   background: rgba(255, 255, 255, 0.32);
@@ -242,20 +245,14 @@ select option { color: #26282e; background: #fff; }            /* 浅色下拉�
 .course-block .course-name {
   font-size: 12.5px;
   font-weight: 700;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .course-block .course-room, .course-block .course-teach {
   font-size: 10.5px;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   opacity: 0.95;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .course-block.other-week { filter: grayscale(1) opacity(var(--ow-alpha, 0.5)); }
 /* 格子文字对齐开关（设置驱动） */
@@ -670,6 +667,8 @@ input[type="range"]::-webkit-slider-thumb {
   gap: 10px 6px;
   padding: 14px 22px 6px;
   justify-items: center;
+  touch-action: none;   /* 按住滑动连选，不滚动页面 */
+  user-select: none;
 }
 .wg-cell {
   width: 38px; height: 38px;
@@ -681,7 +680,6 @@ input[type="range"]::-webkit-slider-thumb {
 }
 .wg-cell:hover { background: var(--indigo-weak); }
 .wg-cell.sel { background: var(--indigo); color: #fff; font-weight: 700; }
-.wg-cell.anchor { outline: 2px solid var(--indigo); outline-offset: 1px; }
 
 .wg-date { display: flex; align-items: center; gap: 8px; justify-content: center; padding: 14px 20px 4px; }
 .wg-date input[type="date"] {

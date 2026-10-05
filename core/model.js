@@ -5,7 +5,9 @@
  *   AppState   { format, device, updatedAt, prefs, currentScheduleId, schedules[] }
  *   Schedule   { id, name, updatedAt, settings, courses[], tombstones{} }   ← 多课表，配置独立
  *   Course     { id, updatedAt, name, color, credit, note, timeSlots[] }    ← 基础信息 + 多时间段
- *   TimeSlot   { id, day, start, step, startWeek, endWeek, isOdd, room, teach, customTime }
+ *   TimeSlot   { id, day, start, step, weeks, startWeek, endWeek, isOdd, room, teach, customTime }
+ *              weeks = '0'/'1' 位串（index 0 = 第 1 周），任意周集合的唯一真源；
+ *              startWeek/endWeek/isOdd 为派生兼容字段（区间 = 选中 min..max，isOdd = 区间内纯奇/偶时为 1/2）
  *
  * 还原原版 v3.x+ 的"课程基础信息/课程时间段"两层模型：
  * 同一门课多个时间段（不同教室/周次/自定义时间）一次录入。
@@ -110,19 +112,67 @@
     return s;
   }
 
+  // ---- 周次位串工具（weeks 唯一真源，startWeek/endWeek/isOdd 为派生兼容字段） ----
+  // 由区间+奇偶展开位串（长度 = endWeek，其后周次隐含为 0）
+  function expandWeeks(sw, ew, odd) {
+    let s = '';
+    for (let w = 1; w <= ew; w++) {
+      s += (w >= sw && (odd === 0 || (odd === 1 && w % 2 === 1) || (odd === 2 && w % 2 === 0))) ? '1' : '0';
+    }
+    return s;
+  }
+
+  // 由位串派生兼容字段：区间 = 选中 min..max；区间内恰好全为奇/偶周 → isOdd 1/2
+  function deriveFromWeeks(weeks) {
+    const first = weeks.indexOf('1');
+    if (first < 0) return { startWeek: 1, endWeek: 1, isOdd: 0 };
+    const sw = first + 1, ew = weeks.lastIndexOf('1') + 1;
+    let pureOdd = true, pureEven = true;
+    for (let w = sw; w <= ew; w++) {
+      const on = weeks.charAt(w - 1) === '1';
+      if (on !== (w % 2 === 1)) pureOdd = false;
+      if (on !== (w % 2 === 0)) pureEven = false;
+      if (!pureOdd && !pureEven) break;
+    }
+    return { startWeek: sw, endWeek: ew, isOdd: pureOdd ? 1 : (pureEven ? 2 : 0) };
+  }
+
+  // 位串 → 人读标签："第1-3、6-8周"；空集合返回 ''
+  function weeksLabel(weeks) {
+    if (typeof weeks !== 'string' || !weeks.includes('1')) return '';
+    const segs = [];
+    let s = -1;
+    for (let i = 0; i <= weeks.length; i++) {
+      const on = i < weeks.length && weeks.charAt(i) === '1';
+      if (on && s < 0) s = i;
+      else if (!on && s >= 0) { segs.push(s + 1 === i ? String(i) : (s + 1) + '-' + i); s = -1; }
+    }
+    return '第' + segs.join('、') + '周';
+  }
+
   function normalizeSlot(raw) {
     const r = raw || {};
-    const sw = Math.max(1, Number(r.startWeek) || 1);
-    const ew = Math.max(sw, Number(r.endWeek) || sw);
     const ct = r.customTime || null;
+    // weeks 位串为真源；无效（非 01 串/全 0）时回退由区间+奇偶展开
+    let weeks = null;
+    if (typeof r.weeks === 'string' && /^[01]+$/.test(r.weeks) && r.weeks.includes('1')) {
+      weeks = r.weeks;
+    } else {
+      const sw0 = Math.max(1, Number(r.startWeek) || 1);
+      const ew0 = Math.max(sw0, Number(r.endWeek) || sw0);
+      const odd0 = [0, 1, 2].includes(Number(r.isOdd)) ? Number(r.isOdd) : 0;
+      weeks = expandWeeks(sw0, ew0, odd0);
+    }
+    const d = deriveFromWeeks(weeks);
     return {
       id: r.id || newId('ts'),
       day: clamp(Number(r.day) || 1, 1, 7),
       start: Math.max(1, Number(r.start) || 1),
       step: Math.max(1, Number(r.step) || 1),
-      startWeek: sw,
-      endWeek: ew,
-      isOdd: [0, 1, 2].includes(Number(r.isOdd)) ? Number(r.isOdd) : 0,
+      weeks,
+      startWeek: d.startWeek,
+      endWeek: d.endWeek,
+      isOdd: d.isOdd,
       room: String(r.room || '').trim(),
       teach: String(r.teach || '').trim(),
       customTime: (ct && TIME_RE.test(ct.start) && TIME_RE.test(ct.end)) ? { start: ct.start, end: ct.end } : null
@@ -223,6 +273,7 @@
 
   return {
     FORMAT, DEFAULT_SETTINGS, DEFAULT_TIMES,
-    newId, normalizeSettings, normalizeSlot, normalizeCourse, normalizeSchedule, normalizeState, migrate
+    newId, normalizeSettings, normalizeSlot, normalizeCourse, normalizeSchedule, normalizeState, migrate,
+    expandWeeks, weeksLabel
   };
 });

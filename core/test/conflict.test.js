@@ -32,6 +32,18 @@ test('slotsConflict: 需同一天+节次重叠+周交集', () => {
   assert.strictEqual(C.slotsConflict(slot({ day: 1, start: 1, step: 2 }), slot({ day: 2, start: 2, step: 2 })), false);
 });
 
+test('slotInWeek/weeksIntersect: weeks 位串优先（支持不连续周）', () => {
+  const w = (weeks, o) => Object.assign({ weeks, startWeek: 1, endWeek: weeks.length }, o || {});
+  assert.strictEqual(C.slotInWeek(w('101000'), 1), true);
+  assert.strictEqual(C.slotInWeek(w('101000'), 2), false);
+  assert.strictEqual(C.slotInWeek(w('101000'), 3), true);
+  assert.strictEqual(C.slotInWeek(w('101000'), 7), false); // 越界位隐含未选
+  // 位串有洞时不连续仍判交；旧字段 slot 与位串 slot 混用
+  assert.strictEqual(C.weeksIntersect(w('100100'), w('011111')), true);   // 第 4 周共有
+  assert.strictEqual(C.weeksIntersect(w('100100'), w('010000')), false);
+  assert.strictEqual(C.weeksIntersect(w('101010'), slot({ startWeek: 3, endWeek: 3 })), true); // 位串 vs 旧字段
+});
+
 test('findConflicts: 跨课程冲突对，同课程时间段不算', () => {
   const A = { id: 'a', name: 'A' };
   const B = { id: 'b', name: 'B' };

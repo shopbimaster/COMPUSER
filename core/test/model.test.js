@@ -22,9 +22,10 @@ test('migrate: v1 平铺课程 → v2 基础信息+单时间段', () => {
   assert.strictEqual(c.credit, null);
   assert.strictEqual(c.timeSlots.length, 1);
   const s = c.timeSlots[0];
+  assert.strictEqual(s.weeks, '1010101010101010'); // 单周 1..15 位串（唯一真源）
   assert.deepStrictEqual(
     { day: s.day, start: s.start, step: s.step, startWeek: s.startWeek, endWeek: s.endWeek, isOdd: s.isOdd, room: s.room, teach: s.teach },
-    { day: 1, start: 2, step: 3, startWeek: 1, endWeek: 16, isOdd: 1, room: '逸夫楼301', teach: '张三' }
+    { day: 1, start: 2, step: 3, startWeek: 1, endWeek: 15, isOdd: 1, room: '逸夫楼301', teach: '张三' } // endWeek 由位串派生（16 为偶周不含）
   );
   assert.strictEqual(st.schedules[0].settings.termStart, '2026-09-28');
 });
@@ -78,6 +79,36 @@ test('normalizeCourse: 无时间段补默认；字符串色号兼容', () => {
   assert.strictEqual(c.timeSlots[0].day, 1);
   const c2 = M.normalizeCourse({ name: 'Y', color: '5' });
   assert.strictEqual(c2.color, 5);
+});
+
+test('normalizeSlot: weeks 位串为唯一真源并派生区间/单双周', () => {
+  // 区间+奇偶 → 展开位串
+  const r = M.normalizeSlot({ startWeek: 1, endWeek: 4 });
+  assert.strictEqual(r.weeks, '1111');
+  assert.strictEqual(M.expandWeeks(1, 5, 1), '10101');
+  // 不连续位串原样保留，派生区间 min..max、混合奇偶 isOdd=0
+  const h = M.normalizeSlot({ weeks: '1101100' });
+  assert.strictEqual(h.weeks, '1101100');
+  assert.deepStrictEqual(
+    { startWeek: h.startWeek, endWeek: h.endWeek, isOdd: h.isOdd },
+    { startWeek: 1, endWeek: 5, isOdd: 0 }
+  );
+  // 区间内纯奇/纯偶 → 派生单/双周
+  assert.strictEqual(M.normalizeSlot({ weeks: '01010' }).isOdd, 2);
+  assert.strictEqual(M.normalizeSlot({ weeks: '0010100' }).isOdd, 1);
+  // 非法位串（非 01/全 0）→ 回退区间展开
+  const bad = M.normalizeSlot({ weeks: '0000', startWeek: 2, endWeek: 3 });
+  assert.strictEqual(bad.weeks, '011');
+  const junk = M.normalizeSlot({ weeks: 'abc1', startWeek: 2, endWeek: 2 });
+  assert.strictEqual(junk.weeks, '01');
+});
+
+test('weeksLabel: 分段压缩人读标签', () => {
+  assert.strictEqual(M.weeksLabel('1101100'), '第1-2、4-5周');
+  assert.strictEqual(M.weeksLabel('00100'), '第3周');
+  assert.strictEqual(M.weeksLabel('111'), '第1-3周');
+  assert.strictEqual(M.weeksLabel('0000'), '');
+  assert.strictEqual(M.weeksLabel(undefined), '');
 });
 
 test('normalizeState: 深度规范化后 roundtrip 稳定', () => {

@@ -353,11 +353,14 @@ function renderCourseDetail(c, slot) {
   const color = courseHex(c);
   const conflicts = C.conflictsOf(allEntries(), c.id, slot ? slot.id : null);
 
-  const slotBlocks = c.timeSlots.map(sl => {
+  // 点击具体课程块 → 只展示该节课（时间段）的信息；其余入口展示全部时间段
+  const slotsToShow = slot ? [slot] : c.timeSlots;
+  const slotBlocks = slotsToShow.map(sl => {
     const inWeek = C.slotInWeek(sl, viewWeek);
+    const wtxt = M.weeksLabel(sl.weeks) || `第${sl.startWeek} - ${sl.endWeek}周`;
     return `
     <div class="dt-slot-block">
-      <div class="dt-row"><span class="dt-ico">${ICONS.calendar}</span><span class="dt-txt">第${sl.startWeek} - ${sl.endWeek}周${sl.isOdd ? ' · ' + ODD_NAMES[sl.isOdd] : ''}${inWeek ? '' : '<div class="dt-sub">非本周</div>'}</span></div>
+      <div class="dt-row"><span class="dt-ico">${ICONS.calendar}</span><span class="dt-txt">${wtxt}${sl.isOdd ? ' · ' + ODD_NAMES[sl.isOdd] : ''}${inWeek ? '' : '<div class="dt-sub">非本周</div>'}</span></div>
       <div class="dt-row"><span class="dt-ico">${ICONS.clock}</span><span class="dt-txt">${DAY_NAMES[sl.day]} 第${sl.start} - ${sl.start + sl.step - 1}节<div class="dt-sub">${slotTimeText(sl).replace(' ~ ', ' - ')}</div></span></div>
       ${sl.room ? `<div class="dt-row"><span class="dt-ico">${ICONS.room}</span><span class="dt-txt">${escapeHtml(sl.room)}</span></div>` : ''}
       ${sl.teach ? `<div class="dt-row"><span class="dt-ico">${ICONS.teacher}</span><span class="dt-txt">${escapeHtml(sl.teach)}</span></div>` : ''}
@@ -521,6 +524,7 @@ function slotCard(sl, idx) {
       <select class="sf-odd">${[0, 1, 2].map(v => `<option value="${v}" ${v === sl.isOdd ? 'selected' : ''}>${ODD_NAMES[v]}</option>`).join('')}</select>
       <input class="sf-sw" value="${sl.startWeek}">
       <input class="sf-ew" value="${Math.max(sl.endWeek, sl.startWeek)}">
+      <input class="sf-weeks" value="${sl.weeks || ''}">
       <input type="date" class="sf-df">
       <input type="date" class="sf-dt">
     </div>
@@ -561,7 +565,12 @@ function updateSlotLabels(card) {
     const df = card.querySelector('.sf-df').value, dt = card.querySelector('.sf-dt').value;
     wl.textContent = df && dt ? `日期 ${df} ~ ${dt}` : '日期模式（自动换算周数）';
   } else {
-    wl.textContent = `第${sw} - ${ew}周` + (odd ? ` · ${ODD_NAMES[odd]}` : '');
+    // 位串可用时按实际选中集合分段显示（支持不连续周）
+    const weeksStr = card.querySelector('.sf-weeks').value;
+    const label = /^[01]+$/.test(weeksStr) && weeksStr.includes('1')
+      ? M.weeksLabel(weeksStr)
+      : `第${sw} - ${ew}周`;
+    wl.textContent = label + (odd ? ` · ${ODD_NAMES[odd]}` : '');
   }
   const day = Number(card.querySelector('.sf-day').value);
   const st = Number(card.querySelector('.sf-start').value);
@@ -569,17 +578,27 @@ function updateSlotLabels(card) {
   card.querySelector('.sf-time-label').textContent = `${DAY_NAMES[day]} 第${st} - ${en}节`;
 }
 
-// ---------- 周次选择弹窗（数字网格 / 日期模式） ----------
-let wdCtx = null; // {card, start, end, odd, mode, picking}
+// ---------- 周次选择弹窗（点选任选 / 按住滑动连选 / 单双周模式 / 日期模式） ----------
+let wdCtx = null; // {card, weeks:[bool], odd, mode}
+let wdDrag = null; // 滑选状态 {state: 起点格按下后的目标选中态}
 
 function openWeekDlg(card) {
+  const total = currentSettings().totalWeeks;
+  const weeksStr = card.querySelector('.sf-weeks').value;
+  let weeks;
+  if (/^[01]+$/.test(weeksStr) && weeksStr.includes('1')) {
+    // 位串与当前总周数对齐（学期周数变更后旧数据也能正确展示）
+    weeks = weeksStr.padEnd(total, '0').slice(0, total).split('').map(ch => ch === '1');
+  } else {
+    const sw = Number(card.querySelector('.sf-sw').value);
+    const ew = Number(card.querySelector('.sf-ew').value);
+    weeks = [];
+    for (let w = 1; w <= total; w++) weeks.push(w >= sw && w <= ew);
+  }
   wdCtx = {
-    card,
-    start: Number(card.querySelector('.sf-sw').value),
-    end: Number(card.querySelector('.sf-ew').value),
+    card, weeks,
     odd: Number(card.querySelector('.sf-odd').value),
-    mode: card.dataset.mode === 'date' ? 'date' : 'week',
-    picking: false
+    mode: card.dataset.mode === 'date' ? 'date' : 'week'
   };
   $('wdDf').value = card.querySelector('.sf-df').value || '';
   $('wdDt').value = card.querySelector('.sf-dt').value || '';
@@ -593,33 +612,67 @@ function renderWeekDlg() {
   $('wgDate').hidden = !dateMode;
   $('wgQuick').hidden = dateMode;
   $('wdModeBtn').textContent = dateMode ? '周次模式' : '日期模式';
+  if (dateMode) return;
 
-  if (!dateMode) {
-    const total = currentSettings().totalWeeks;
-    const grid = $('wgGrid');
+  const grid = $('wgGrid');
+  const total = wdCtx.weeks.length;
+  if (Number(grid.dataset.total) !== total) { // 仅在总周数变化时重建格子，滑选中只同步样式
     grid.innerHTML = '';
+    grid.dataset.total = total;
     for (let w = 1; w <= total; w++) {
       const cell = document.createElement('button');
       cell.type = 'button';
-      cell.className = 'wg-cell' + (w >= wdCtx.start && w <= wdCtx.end ? ' sel' : '');
+      cell.className = 'wg-cell';
+      cell.dataset.w = w;
       cell.textContent = w;
-      cell.onclick = () => {
-        if (wdCtx.picking) {
-          wdCtx.end = w;
-          if (wdCtx.end < wdCtx.start) [wdCtx.start, wdCtx.end] = [wdCtx.end, wdCtx.start];
-          wdCtx.picking = false;
-        } else {
-          wdCtx.start = wdCtx.end = w;
-          wdCtx.picking = true;
-        }
-        renderWeekDlg();
-      };
       grid.appendChild(cell);
     }
-    $('wgAll').classList.toggle('on', wdCtx.odd === 0);
-    $('wgOdd').classList.toggle('on', wdCtx.odd === 1);
-    $('wgEven').classList.toggle('on', wdCtx.odd === 2);
   }
+  syncWeekGrid();
+}
+
+function syncWeekGrid() {
+  const has = wdCtx.weeks.some(Boolean); // 空选择时三个模式按钮均不高亮
+  $('wgGrid').querySelectorAll('.wg-cell').forEach(cell => {
+    cell.classList.toggle('sel', !!wdCtx.weeks[Number(cell.dataset.w) - 1]);
+  });
+  $('wgAll').classList.toggle('on', has && wdCtx.odd === 0);
+  $('wgOdd').classList.toggle('on', has && wdCtx.odd === 1);
+  $('wgEven').classList.toggle('on', has && wdCtx.odd === 2);
+}
+
+// 按住滑动经过的格子统一设为起点格按下后的状态（再滑可整段清除）
+function wdApplyAt(x, y) {
+  if (!wdCtx || wdCtx.mode === 'date' || !wdDrag) return;
+  const el = document.elementFromPoint(x, y);
+  const cell = el && el.closest ? el.closest('.wg-cell') : null;
+  if (!cell || !cell.dataset.w) return;
+  const w = Number(cell.dataset.w);
+  if (wdCtx.weeks[w - 1] === wdDrag.state) return;
+  wdCtx.weeks[w - 1] = wdDrag.state;
+  // 单/双周模式下选中了不符合奇偶规则的周 → 自动退出该模式（周保留）
+  if (wdDrag.state && wdCtx.odd === 1 && w % 2 === 0) wdCtx.odd = 0;
+  if (wdDrag.state && wdCtx.odd === 2 && w % 2 === 1) wdCtx.odd = 0;
+  syncWeekGrid();
+}
+
+// 单/双周按钮：已有选中 → 当前选区过滤为对应奇偶子集（"只选一半"）；
+// 过滤后为空或原本无选中 → 直接全选所有单/双周
+function wdPickMode(mode) {
+  if (!wdCtx || wdCtx.mode === 'date') return;
+  const total = wdCtx.weeks.length;
+  if (mode === 0) {
+    // 开关行为：已全选 → 再点全周 = 全不选（确定时另有空选校验兜底）
+    wdCtx.weeks = wdCtx.weeks.every(Boolean) ? Array(total).fill(false) : Array(total).fill(true);
+  } else {
+    const parity = mode === 1 ? 1 : 0; // 单周=奇数周，双周=偶数周
+    wdCtx.weeks = wdCtx.weeks.map((sel, i) => sel && ((i + 1) % 2 === parity));
+    if (!wdCtx.weeks.some(Boolean)) {
+      wdCtx.weeks = wdCtx.weeks.map((_, i) => (i + 1) % 2 === parity);
+    }
+  }
+  wdCtx.odd = mode;
+  syncWeekGrid();
 }
 
 // ---------- 时间选择弹窗（三列点选） ----------
@@ -705,16 +758,19 @@ function readCourseForm() {
     const end = Number(card.querySelector('.sf-end').value);
     if (!start || !end || start > end) return { err: '存在时间段节次不合法（结束节需不小于开始节）' };
 
-    let sw, ew;
+    let sw, ew, weeks;
     if (card.dataset.mode === 'date') {
       const df = card.querySelector('.sf-df').value;
       const dt = card.querySelector('.sf-dt').value;
       if (!df || !dt) return { err: '日期模式需填写起止日期' };
       ({ startWeek: sw, endWeek: ew } = W.weeksFromDates(s.termStart, df, dt));
+      weeks = null; // 日期模式由区间展开位串
     } else {
       sw = Number(card.querySelector('.sf-sw').value);
       ew = Number(card.querySelector('.sf-ew').value);
       if (!sw || !ew || sw > ew) return { err: '存在时间段周次不合法（结束周需不小于开始周）' };
+      weeks = card.querySelector('.sf-weeks').value;
+      if (!/^[01]+$/.test(weeks) || !weeks.includes('1')) return { err: '存在时间段未选择上课周次' };
     }
 
     let customTime = null;
@@ -728,7 +784,7 @@ function readCourseForm() {
     slots.push(M.normalizeSlot({
       day: Number(card.querySelector('.sf-day').value),
       start, step: end - start + 1,
-      startWeek: sw, endWeek: ew,
+      startWeek: sw, endWeek: ew, weeks,
       isOdd: Number(card.querySelector('.sf-odd').value),
       room: card.querySelector('.sf-room').value.trim(),
       teach: card.querySelector('.sf-teach').value.trim(),
@@ -1446,18 +1502,26 @@ function bindEvents() {
   };
   $('btnConfirmImport').onclick = confirmImportChoice;
 
-  // 周次选择弹窗
+  // 周次选择弹窗：点选 toggle、按住滑动连选（pointer capture 后经坐标命中格子）
   $('wdModeBtn').onclick = () => { wdCtx.mode = wdCtx.mode === 'date' ? 'week' : 'date'; renderWeekDlg(); };
-  const wdPickAll = (odd) => {
-    wdCtx.odd = odd;
-    wdCtx.start = 1;
-    wdCtx.end = currentSettings().totalWeeks;
-    wdCtx.picking = false;
-    renderWeekDlg();
-  };
-  $('wgAll').onclick = () => wdPickAll(0);
-  $('wgOdd').onclick = () => wdPickAll(1);
-  $('wgEven').onclick = () => wdPickAll(2);
+  const wdGrid = $('wgGrid');
+  wdGrid.addEventListener('pointerdown', (e) => {
+    if (!wdCtx || wdCtx.mode === 'date') return;
+    const cell = e.target.closest('.wg-cell');
+    if (!cell || !cell.dataset.w) return;
+    e.preventDefault();
+    const w = Number(cell.dataset.w);
+    wdDrag = { state: !wdCtx.weeks[w - 1] };
+    try { wdGrid.setPointerCapture(e.pointerId); } catch (err) { }
+    wdApplyAt(e.clientX, e.clientY);
+  });
+  wdGrid.addEventListener('pointermove', (e) => wdApplyAt(e.clientX, e.clientY));
+  const wdEndDrag = () => { wdDrag = null; };
+  wdGrid.addEventListener('pointerup', wdEndDrag);
+  wdGrid.addEventListener('pointercancel', wdEndDrag);
+  $('wgAll').onclick = () => wdPickMode(0);
+  $('wgOdd').onclick = () => wdPickMode(1);
+  $('wgEven').onclick = () => wdPickMode(2);
   $('wdCancel').onclick = () => { wdCtx = null; closeModal('weekDlg'); };
   $('wdOk').onclick = () => {
     if (!wdCtx) return;
@@ -1469,10 +1533,21 @@ function bindEvents() {
       card.dataset.mode = 'date';
       card.querySelector('.sf-df').value = df;
       card.querySelector('.sf-dt').value = dt;
+      // 日期 → 周次区间，展开为位串
+      const s = currentSettings();
+      const { startWeek: sw, endWeek: ew } = W.weeksFromDates(s.termStart, df, dt);
+      card.querySelector('.sf-weeks').value = M.expandWeeks(Math.max(1, sw), Math.max(1, ew), 0);
+      card.querySelector('.sf-sw').value = Math.max(1, sw);
+      card.querySelector('.sf-ew').value = Math.max(1, ew);
+      card.querySelector('.sf-odd').value = 0;
     } else {
+      if (!wdCtx.weeks.some(Boolean)) { showToast('请至少选择一个周'); return; }
       card.dataset.mode = 'week';
-      card.querySelector('.sf-sw').value = wdCtx.start;
-      card.querySelector('.sf-ew').value = wdCtx.end;
+      card.querySelector('.sf-weeks').value = wdCtx.weeks.map(v => v ? '1' : '0').join('');
+      let sw = -1, ew = -1;
+      wdCtx.weeks.forEach((v, i) => { if (v) { if (sw < 0) sw = i + 1; ew = i + 1; } });
+      card.querySelector('.sf-sw').value = sw;
+      card.querySelector('.sf-ew').value = ew;
       card.querySelector('.sf-odd').value = wdCtx.odd;
     }
     updateSlotLabels(card);
@@ -1645,6 +1720,8 @@ function readSlotFromCard(card) {
   let sw = Number(card.querySelector('.sf-sw').value);
   let ew = Number(card.querySelector('.sf-ew').value);
   if (!sw || !ew || sw > ew) { sw = 1; ew = s.totalWeeks; }
+  const weeksStr = card.querySelector('.sf-weeks').value;
+  const weeks = /^[01]+$/.test(weeksStr) && weeksStr.includes('1') ? weeksStr : null;
   let customTime = null;
   if (card.querySelector('.sf-custom').checked) {
     const cts = card.querySelector('.sf-cts').value;
@@ -1653,7 +1730,7 @@ function readSlotFromCard(card) {
   }
   return M.normalizeSlot({
     day: Number(card.querySelector('.sf-day').value),
-    start, step: end - start + 1, startWeek: sw, endWeek: ew,
+    start, step: end - start + 1, startWeek: sw, endWeek: ew, weeks,
     isOdd: Number(card.querySelector('.sf-odd').value),
     room: card.querySelector('.sf-room').value.trim(),
     teach: card.querySelector('.sf-teach').value.trim(),
