@@ -63,6 +63,14 @@ test('normalizeSettings: 边界收敛与时间表补齐', () => {
   assert.strictEqual(s2.classNum, 8); // 下限 8
 });
 
+test('normalizeSettings: courseGap 0 为合法值，超界收敛 0-10', () => {
+  assert.strictEqual(M.normalizeSettings({ courseGap: 0 }).courseGap, 0);
+  assert.strictEqual(M.normalizeSettings({ courseGap: 99 }).courseGap, 10);
+  assert.strictEqual(M.normalizeSettings({ courseGap: -3 }).courseGap, 0);
+  assert.strictEqual(M.normalizeSettings({ courseGap: 'abc' }).courseGap, 1.5);
+  assert.strictEqual(M.normalizeSettings({}).courseGap, 1.5);
+});
+
 test('normalizeSlot: 周次倒置收敛、customTime 校验、day 越界', () => {
   const s = M.normalizeSlot({ day: 9, start: 0, startWeek: 3, endWeek: 1, customTime: { start: '25:00', end: '09:00' } });
   assert.strictEqual(s.day, 7);

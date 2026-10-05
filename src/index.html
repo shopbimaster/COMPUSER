@@ -295,7 +295,6 @@
                   title="输入 6 位十六进制颜色"
               /></span>
             </div>
-            <div class="color-pick" id="colorPick" hidden></div>
             <div class="custom-color-row" id="customColorRow" hidden>
               <div class="cp-sv" id="cpSv">
                 <span class="cp-dot" id="cpDot"></span>
@@ -390,18 +389,22 @@
               />
             </svg>
           </button>
-          <span class="delete-scope" id="deleteScopeArea" hidden>
-            <button class="pill-btn danger" id="btnDeleteSlotOnly">
-              仅删除该时间段
-            </button>
-            <button class="pill-btn danger" id="btnDeleteWholeCourse">
-              删除整门课程
-            </button>
-            <button class="pill-btn" id="btnCancelDelete">取消</button>
-          </span>
           <button class="pill-btn" id="btnCancelCourse" hidden>取消</button>
           <span class="flex-sp"></span>
           <button class="pill-btn big" id="btnEditCourse">编辑</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 删除确认弹窗（三选一：本节 / 此时间段 / 整门课程） -->
+    <div class="modal-overlay" id="deleteModal" hidden>
+      <div class="modal sm dlg">
+        <div class="dlg-tabs">
+          <span class="dlg-title" id="delTitle">删除课程</span>
+        </div>
+        <div class="share-choice-list" id="delOptions"></div>
+        <div class="dlg-foot">
+          <button type="button" class="link-btn" id="delCancel">取消</button>
         </div>
       </div>
     </div>
@@ -636,6 +639,18 @@
                   max="16"
                   step="1"
                 /><span class="sr-val" id="radiusVal"></span>
+              </div>
+            </div>
+            <div class="set-row">
+              <span class="sr-label">课程格子边距</span>
+              <div class="sr-ctrl">
+                <input
+                  type="range"
+                  id="s_courseGap"
+                  min="0"
+                  max="10"
+                  step="0.5"
+                /><span class="sr-val" id="courseGapVal"></span>
               </div>
             </div>
             <div class="set-row">

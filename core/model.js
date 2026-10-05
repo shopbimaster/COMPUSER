@@ -49,6 +49,7 @@
     sameLen: false,         // 每节课时长相同
     courseTextSize: 12,     // 格子内课程文字大小 9-16
     cornerRadius: 7,        // 格子圆角 0-16
+    courseGap: 1.5,         // 课程格子边距（列宽百分比 0-10）：课程与列衬底、课程之间的统一间距
     textHCenter: false,     // 格子文字水平居中
     textVCenter: false,     // 格子文字垂直居中
     showTimeInGrid: true,   // 在格子内显示上课节次
@@ -88,6 +89,9 @@
     s.sundayFirst = !!s.sundayFirst;
     s.courseTextSize = clamp(Number(s.courseTextSize) || 12, 9, 16);
     s.cornerRadius = clamp(Number(s.cornerRadius) || 7, 0, 16);
+    // 0 是合法值（无间距），不能走 `|| 默认` 的短路写法
+    const cg = Number(s.courseGap);
+    s.courseGap = isNaN(cg) ? DEFAULT_SETTINGS.courseGap : clamp(cg, 0, 10);
     s.textHCenter = !!s.textHCenter;
     s.textVCenter = !!s.textVCenter;
     s.showTimeInGrid = s.showTimeInGrid !== false && s.showTimeInGrid !== 'false';
