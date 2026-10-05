@@ -923,11 +923,15 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--indigo); width
 .share-choice .sc-txt b { font-size: 13.5px; }
 .share-choice .sc-txt small { font-size: 11.5px; color: var(--text-2); }
 
-/* 摄像头扫码 */
-.scan-entry {
-  display: inline-flex; align-items: center; gap: 6px;
-  margin-bottom: 10px;
+/* 摄像头扫码：口令导入标题行右侧的图标按钮 */
+.scan-btn {
+  width: 30px; height: 30px;
+  color: var(--text-2);
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
 }
+.scan-btn svg { width: 19px; height: 19px; }
+.scan-btn:hover { background: var(--input-bg); color: var(--indigo); }
 .scan-box {
   position: relative;
   border-radius: 14px;
