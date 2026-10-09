@@ -41,7 +41,7 @@
       receive: () => new Promise((resolve) => {
         const input = document.createElement('input');
         input.type = 'file';
-        input.accept = '.json,.csv,.txt';
+        input.accept = '.json,.csv,.ics,.txt';
         input.onchange = () => {
           const f = input.files && input.files[0];
           if (!f) return resolve(null);

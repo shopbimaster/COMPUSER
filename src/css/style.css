@@ -323,7 +323,7 @@ select option {
   position: absolute;
   left: 0;
   right: 0;
-  height: var(--unit);
+  /* 高度由 JS 逐行设置（均匀分节 = itemHeight） */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1297,8 +1297,9 @@ input[type="range"]::-webkit-slider-thumb {
 .set-row .sr-label {
   font-weight: 600;
   flex-shrink: 0;
-  /* 统一标签宽（容纳最长 7 字标签）：窄屏滑杆收缩后各行仍等长 */
-  width: 96px;
+  /* 统一标签宽（容纳最长 10 字标签「在格子内显示上课节次」不折行）：
+     等宽保证窄屏滑杆收缩后各行仍等长 */
+  width: 140px;
 }
 .set-row .sr-ctrl {
   display: flex;

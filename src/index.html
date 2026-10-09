@@ -638,6 +638,18 @@
               </div>
             </div>
             <div class="set-row">
+              <span class="sr-label">课程块饱和度</span>
+              <div class="sr-ctrl">
+                <input
+                  type="range"
+                  id="s_saturation"
+                  min="0"
+                  max="100"
+                  step="1"
+                /><span class="sr-val" id="satVal"></span>
+              </div>
+            </div>
+            <div class="set-row">
               <span class="sr-label">课程格子高度</span>
               <div class="sr-ctrl">
                 <input
@@ -972,6 +984,31 @@
           <span class="flex-sp"></span>
           <button class="pill-btn" data-close="importChoiceModal">取消</button>
           <button class="pill-btn primary" id="btnConfirmImport">导入</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 日历（ICS）导入：匹配节次时间表的日程如何存储 -->
+    <div class="modal-overlay" id="icsFormatModal" hidden>
+      <div class="modal sm">
+        <div class="modal-header">
+          <span>导入日历</span>
+        </div>
+        <div class="modal-body">
+          <div class="import-summary" id="icsFormatSummary"></div>
+          <label class="switch-label choice-row">
+            <input type="radio" name="icsFormat" value="course" checked />
+            匹配节次的存为课程格式（随「上课时间」设置统一变更，推荐）
+          </label>
+          <label class="switch-label choice-row">
+            <input type="radio" name="icsFormat" value="fixed" />
+            全部保留自定义时间（每个日程固定其导入时刻）
+          </label>
+        </div>
+        <div class="modal-footer">
+          <span class="flex-sp"></span>
+          <button class="pill-btn" data-close="icsFormatModal">取消</button>
+          <button class="pill-btn primary" id="btnConfirmIcsFormat">导入</button>
         </div>
       </div>
     </div>

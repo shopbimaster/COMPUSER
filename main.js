@@ -6,35 +6,41 @@ const path = require('path');
 const fs = require('fs');
 const BRAND = require('./branding');
 
-// 数据目录：安装版存 %APPDATA%（安装目录可能只读），开发/便携模式存项目内 data/
+// 数据目录：
+// - 开发/便携：项目内 data/（绿色便携，数据随目录走）
+// - 安装版：%APPDATA%\campuser\installs\<安装路径键>\data —— 按安装目录隔离，
+//   多个版本装在不同目录互不干扰；同目录升级键不变、数据保留。
+//   旧版数据（%APPDATA%\campuser\data、品牌更名前 wakeup 目录）一次性拷贝迁移（保留原目录）。
 const isPortable = !app.isPackaged;
+const installDataKey = () => {
+  const exeDir = path.dirname(app.getPath('exe'));
+  return exeDir.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'default';
+};
 const DATA_DIR = isPortable
   ? path.join(__dirname, 'data')
-  : path.join(app.getPath('userData'), 'data');
+  : path.join(app.getPath('appData'), 'campuser', 'installs', installDataKey(), 'data');
 const DATA_FILE = path.join(DATA_DIR, 'schedule.json');
 
 // 便携化：仅开发/便携模式把 userData 指向项目内目录；安装版保持系统默认
 if (isPortable) app.setPath('userData', path.join(DATA_DIR, 'profile'));
 
-// 一次性迁移：品牌更名前（wakeup-schedule-local）的安装版数据 → 现目录
-if (isPackagedMigrationNeeded()) {
-  try {
-    fs.cpSync(migrationSourceDir(), DATA_DIR, { recursive: true });
-    console.log('[migrate] imported data from legacy brand directory');
-  } catch (e) {
-    console.log('[migrate] skipped:', String(e));
+// 一次性迁移：首跑且新目录无数据时，从旧版目录拷贝（旧目录保留，便于回退旧版本）
+if (!isPortable && !fs.existsSync(DATA_FILE)) {
+  const legacyDirs = [
+    path.join(app.getPath('appData'), 'campuser', 'data'), // v1.5.0 安装版
+    path.join(app.getPath('appData'), 'wakeup-schedule-local', 'data') // 品牌更名前
+  ];
+  for (const src of legacyDirs) {
+    if (fs.existsSync(path.join(src, 'schedule.json'))) {
+      try {
+        fs.cpSync(src, DATA_DIR, { recursive: true });
+        console.log('[migrate] imported data from', src);
+      } catch (e) {
+        console.log('[migrate] skipped:', String(e));
+      }
+      break;
+    }
   }
-}
-
-function migrationSourceDir() {
-  return path.join(app.getPath('appData'), 'wakeup-schedule-local', 'data');
-}
-function isPackagedMigrationNeeded() {
-  return (
-    !isPortable &&
-    !fs.existsSync(DATA_FILE) &&
-    fs.existsSync(path.join(migrationSourceDir(), 'schedule.json'))
-  );
 }
 
 function ensureDataFile() {

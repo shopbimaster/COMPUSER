@@ -132,9 +132,15 @@
     }
 
     if (!groups.size) return { error: '没有解析到有效课程行' + (skipped ? `（跳过 ${skipped} 行无效数据）` : '') };
+    // 未填颜色的课程按随机池顺序分配不重复颜色（课程多于池长时循环；显式颜色保留）
+    const pool = Model.RANDOM_COLORS;
+    let ci = 0;
+    for (const g of groups.values()) {
+      if (g.color === '') g.color = pool[ci++ % pool.length];
+    }
     const courses = [...groups.values()].map(g => Model.normalizeCourse({
       name: g.name,
-      color: g.color === '' ? -1 : g.color,
+      color: g.color,
       credit: g.credit === '' ? null : Number(g.credit),
       note: g.note,
       timeSlots: g._slots

@@ -35,6 +35,7 @@
     classNum: 11,
     itemHeight: 56,         // 原版默认 56dp
     alpha: 100,             // 新版风格：实色课程块（可调半透明）
+    saturation: 100,        // 课程块饱和度：在原色基础上按比例降低（0=全灰）
     showOtherWeek: true,
     otherWeekAlpha: 50,     // 非本周课程不透明度 10-100
     showWeekend: true,      // 兼容旧字段：关闭 → showSaturday/showSunday 均 false
@@ -74,6 +75,9 @@
     s.totalWeeks = clamp(Number(s.totalWeeks) || 20, 1, 40);
     s.itemHeight = clamp(Number(s.itemHeight) || 56, 40, 90);
     s.alpha = clamp(Number(s.alpha) || 100, 10, 100);
+    // 0 是合法值（全灰），不能走 `|| 默认` 的短路写法
+    const sat = Number(s.saturation);
+    s.saturation = isNaN(sat) ? 100 : clamp(sat, 0, 100);
     s.showOtherWeek = s.showOtherWeek !== false && s.showOtherWeek !== 'false';
     s.otherWeekAlpha = clamp(Number(s.otherWeekAlpha) || 50, 10, 100);
     s.showWeekend = s.showWeekend !== false && s.showWeekend !== 'false';
@@ -275,8 +279,16 @@
     return normalizeState(null);
   }
 
+  // 自动配色随机池：12 色均匀分布色环（红橙金黄黄绿绿青天蓝蓝紫粉紫品红玫红），
+  // 单一事实源：UI 层自动配色与导入去重分配共用
+  const RANDOM_COLORS = [
+    '#e05454', '#e8843c', '#d9b13c', '#a3c94a',
+    '#58b858', '#3cb8a0', '#45a8d9', '#5a78d9',
+    '#8a63d2', '#c45ad9', '#d958a8', '#d95c6c'
+  ];
+
   return {
-    FORMAT, DEFAULT_SETTINGS, DEFAULT_TIMES,
+    FORMAT, DEFAULT_SETTINGS, DEFAULT_TIMES, RANDOM_COLORS,
     newId, normalizeSettings, normalizeSlot, normalizeCourse, normalizeSchedule, normalizeState, migrate,
     expandWeeks, weeksLabel
   };

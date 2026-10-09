@@ -125,22 +125,8 @@ function escapeHtml(s) {
   );
 }
 
-// 自动配色的随机池：仅含均匀分布在色环上的基础色（红橙黄绿蓝紫）
-const RANDOM_COLORS = [
-  "#e85454",
-  "#e8933c",
-  "#d9b83c",
-  "#5aa66a",
-  "#4a83c9",
-  "#8a63d2",
-];
-
-function effectiveColorIndex(c) {
-  if (typeof c.color === "number" && c.color >= 0 && c.color <= 9)
-    return c.color;
-  const code = c.name ? c.name.charCodeAt(0) : NaN;
-  return isNaN(code) ? 0 : code % RANDOM_COLORS.length; // 自动：课程名首字 hash 到基础随机池
-}
+// 自动配色随机池（12 色均匀分布色环）：单一事实源在 core/model.js，UI 与导入去重共用
+const RANDOM_COLORS = M.RANDOM_COLORS;
 
 // 课程最终生效颜色（支持自定义 hex / 库色 / 自动随机池）
 function courseHex(c) {
@@ -212,7 +198,13 @@ function hsvToHex(h, s, v) {
 
 // 课程块样式：颜色按透明度叠在页面底色上，按混合亮度自动取黑/白文字
 function courseBlockStyle(c) {
-  const [r, g, b] = hexToRgb(courseHex(c));
+  let [r, g, b] = hexToRgb(courseHex(c));
+  // 饱和度滑块：在原色基础上按比例降低 HSV 饱和度（0=全灰，100=原色）
+  const sat = currentSettings().saturation / 100;
+  if (sat < 1) {
+    const { h, s, v } = hexToHsv(rgbToHex(r, g, b));
+    [r, g, b] = hexToRgb(hsvToHex(h, s * sat, v));
+  }
   const card = state.prefs.theme === "dark" ? [42, 46, 55] : [250, 250, 253];
   const a = currentSettings().alpha / 100;
   const blend = [r, g, b].map((ch, i) =>
@@ -258,7 +250,6 @@ function render(reflowed) {
 
   const grid = $("grid");
   grid.style.setProperty("--day-count", visibleDays.length);
-  grid.style.setProperty("--unit", s.itemHeight + "px");
   grid.style.setProperty("--col-bg-a", s.showColBg ? s.colBgAlpha / 100 : 0);
   grid.style.setProperty("--header-fs", s.headerTextSize + "px");
   grid.style.setProperty("--ow-alpha", s.otherWeekAlpha / 100);
@@ -275,6 +266,9 @@ function render(reflowed) {
           Math.max(1, visibleDays.length),
       );
   gapPx = Math.round(colW * (s.courseGap / 100));
+
+  // 时间轴：均匀分节网格 + 节内线性插值（自定义时间块按真实时刻无缝嵌入）
+  const axis = buildTimeAxis(s, gapPx);
   grid.innerHTML = "";
 
   const corner = document.createElement("div");
@@ -295,9 +289,11 @@ function render(reflowed) {
   const timeCol = document.createElement("div");
   timeCol.className = "time-col";
   for (let i = 1; i <= s.classNum; i++) {
+    const r = axis.rows[i - 1];
     const sec = document.createElement("div");
     sec.className = "sec";
-    sec.style.top = (i - 1) * (s.itemHeight + 2 * gapPx) + gapPx + "px";
+    sec.style.top = r.y0 + "px";
+    sec.style.height = r.y1 - r.y0 + "px";
     sec.innerHTML = `<span class="sec-no">${i}</span><span>${s.times[i - 1].start}</span><span>${s.times[i - 1].end}</span>`;
     timeCol.appendChild(sec);
   }
@@ -307,9 +303,8 @@ function render(reflowed) {
     const col = document.createElement("div");
     col.className = "day-col";
     col.dataset.day = d;
-    // 衬底长度 = 一日节数网格总高 + 首尾各一个边距（最后一节底部再留 g）
-    col.style.height =
-      s.classNum * s.itemHeight + 2 * s.classNum * gapPx + "px";
+    // 衬底长度 = 时间轴总高（各节按时长占比 + 节间空隙 + 首尾各一个边距）
+    col.style.height = axis.totalH + "px";
 
     const dayEntries = allEntries()
       .filter((e) => e.slot.day === d)
@@ -318,17 +313,21 @@ function render(reflowed) {
     for (const e of dayEntries) {
       const inWeek = C.slotInWeek(e.slot, viewWeek);
       if (!inWeek && !s.showOtherWeek) continue;
-      col.appendChild(buildCourseBlock(e, inWeek));
+      col.appendChild(buildCourseBlock(e, inWeek, axis));
     }
 
     col.addEventListener("dblclick", (ev) => {
       const rect = col.getBoundingClientRect();
-      const y = ev.clientY - rect.top - gapPx;
-      const sec = Math.max(
-        1,
-        Math.min(s.classNum, Math.floor(y / (s.itemHeight + 2 * gapPx)) + 1),
-      );
-      openCourseModal("add", null, null, { day: d, start: sec });
+      const y = ev.clientY - rect.top;
+      // 命中时间轴各行（首尾各放宽一个边距容差），取包含纵坐标的一节
+      let secIdx = axis.rows.length - 1;
+      for (let i = 0; i < axis.rows.length; i++) {
+        if (y < axis.rows[i].y1 + gapPx) {
+          secIdx = i;
+          break;
+        }
+      }
+      openCourseModal("add", null, null, { day: d, start: secIdx + 1 });
     });
 
     grid.appendChild(col);
@@ -358,32 +357,54 @@ function entryStartMin(e) {
   return toMin(s.times[Math.min(e.slot.start, s.classNum) - 1].start);
 }
 
-function buildCourseBlock(e, isCurrent) {
+// ---------- 时间轴布局 ----------
+// 行网格保持均匀分节（每节固定 itemHeight 高、节间 2×边距），不随节时长改变间隔；
+// 自定义时间块不改分节：其起止时刻在各节的范围内线性插值定位（节内按时长比例、
+// 节间跨 2g 空隙过渡），从而无缝嵌入均匀网格
+function buildTimeAxis(s, gapPx) {
+  const rows = [];
+  for (let i = 0; i < s.classNum; i++) {
+    const st = toMin(s.times[i].start);
+    let en = toMin(s.times[i].end);
+    if (en <= st) en = st + 1; // 容错：起止颠倒按 1 分钟
+    const y0 = i * (s.itemHeight + 2 * gapPx) + gapPx;
+    rows.push({ st, en, y0, y1: y0 + s.itemHeight });
+  }
+  const t2y = (t) => {
+    const first = rows[0];
+    const last = rows[rows.length - 1];
+    if (t <= first.st) return first.y0;
+    if (t >= last.en) return last.y1;
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (t >= r.st && t <= r.en)
+        return r.y0 + ((t - r.st) / Math.max(1, r.en - r.st)) * (r.y1 - r.y0);
+      const nx = rows[i + 1];
+      if (nx && t > r.en && t < nx.st)
+        return r.y1 + ((t - r.en) / Math.max(1, nx.st - r.en)) * (nx.y0 - r.y1);
+    }
+    return last.y1;
+  };
+  return { rows, totalH: s.classNum * s.itemHeight + 2 * s.classNum * gapPx, t2y };
+}
+
+function buildCourseBlock(e, isCurrent, axis) {
   const s = currentSettings();
   const { course: c, slot: sl } = e;
   const el = document.createElement("div");
   el.className = "course-block" + (isCurrent ? "" : " other-week");
 
-  let top, height;
-  if (sl.customTime) {
-    // 还原原版"自定义时间课程按比例显示"
-    const dayStart = toMin(s.times[0].start);
-    const dayEnd = toMin(s.times[s.classNum - 1].end);
-    const span = Math.max(1, dayEnd - dayStart);
-    const totalH = s.classNum * s.itemHeight + (s.classNum - 1) * 2 * gapPx;
-    top = Math.max(
-      0,
-      ((toMin(sl.customTime.start) - dayStart) / span) * totalH,
-    );
-    height = Math.max(
-      14,
-      ((toMin(sl.customTime.end) - toMin(sl.customTime.start)) / span) * totalH,
-    );
-  } else {
-    // 节步进含 2×边距（课程间间隔 = 边距二倍）；首块顶部内缩与块高按同网格对齐
-    top = (sl.start - 1) * (s.itemHeight + 2 * gapPx) + gapPx;
-    height = sl.step * s.itemHeight + (sl.step - 1) * 2 * gapPx;
-  }
+  // 起止时刻 → 时间轴纵坐标：自定义时间块按节内线性插值定位（分节间隔不变），
+  // 普通课即所在节行边界；上下各内缩一个边距与左右一致
+  const last = axis.rows.length - 1;
+  const bs = sl.customTime
+    ? toMin(sl.customTime.start)
+    : axis.rows[Math.min(sl.start - 1, last)].st;
+  const be = sl.customTime
+    ? toMin(sl.customTime.end)
+    : axis.rows[Math.min(sl.start + sl.step - 1, last + 1) - 1].en;
+  const top = axis.t2y(bs) + gapPx;
+  const height = Math.max(14, axis.t2y(be) - axis.t2y(bs) - 2 * gapPx);
   el.style.top = top + "px";
   el.style.height = height + "px";
   // 格子相对衬底左右内缩 = 课程格子边距（衬底整列不变，格子变小）
@@ -1333,6 +1354,8 @@ function openSettings() {
   }
   $("s_alpha").value = s.alpha;
   $("alphaVal").textContent = s.alpha + "%";
+  $("s_saturation").value = s.saturation;
+  $("satVal").textContent = s.saturation + "%";
   $("s_itemHeight").value = s.itemHeight;
   $("heightVal").textContent = s.itemHeight + "px";
   $("s_showColBg").checked = s.showColBg;
@@ -1408,6 +1431,7 @@ function collectSettings() {
   s.totalWeeks = Number($("s_totalWeeks").value) || 20;
   s.classNum = Number($("s_classNum").value);
   s.alpha = Number($("s_alpha").value);
+  s.saturation = Number($("s_saturation").value);
   s.itemHeight = Number($("s_itemHeight").value);
   s.showColBg = $("s_showColBg").checked;
   s.colBgAlpha = Number($("s_colBgAlpha").value);
@@ -1633,6 +1657,7 @@ async function openQrModal() {
 }
 
 let pendingImportState = null;
+let pendingIcsImport = null; // ICS 导入：待用户选择匹配日程的存储格式
 
 // ---------- 摄像头扫码（BarcodeDetector + getUserMedia） ----------
 let scanStream = null,
@@ -1719,6 +1744,30 @@ async function handleImportText(text, name) {
     return;
   }
 
+  // ICS → 整表导入为新课表（扩展名或内容嗅探；携带自身学期设置）。
+  // 有与节次时间表匹配的日程时先询问：匹配的存为课程格式（随时间表统一变更）或保留自定义时间
+  if (/\.ics$/i.test(name || "") || /^\uFEFF?\s*BEGIN:VCALENDAR/i.test(text)) {
+    const first = Ics.parseIcs(text, name);
+    if (first.error) {
+      showToast("导入失败：" + first.error);
+      return;
+    }
+    if (first.stats.matched > 0) {
+      pendingIcsImport = { text, name };
+      $("icsFormatSummary").innerHTML =
+        `<b>${escapeHtml(first.schedule.name)}</b><br>` +
+        `${first.schedule.courses.length} 门课程 / ${first.stats.total} 个时间段，` +
+        `其中 <b>${first.stats.matched}</b> 个的时间与节次时间表完全匹配`;
+      openModal("icsFormatModal");
+      return;
+    }
+    importAsNewSchedules([first.schedule]);
+    showToast(
+      `已导入课表「${first.schedule.name}」：${first.schedule.courses.length} 门课程`,
+    );
+    return;
+  }
+
   const parsed = Bk.parseAuto(text);
   if (parsed.error) {
     showToast("导入失败：" + parsed.error);
@@ -1776,6 +1825,26 @@ async function confirmImportChoice() {
   } else {
     importAsNewSchedules(incoming.schedules);
   }
+}
+
+// 日历导入：匹配节次时间表的日程——存为课程格式（随时间表统一变更）或保留自定义时间
+function confirmIcsFormat() {
+  if (!pendingIcsImport) return;
+  const mode =
+    (document.querySelector('input[name="icsFormat"]:checked') || {}).value ||
+    "course";
+  const { text, name } = pendingIcsImport;
+  pendingIcsImport = null;
+  closeModal("icsFormatModal");
+  const r = Ics.parseIcs(text, name, { courseFormat: mode === "course" });
+  if (r.error) {
+    showToast("导入失败：" + r.error);
+    return;
+  }
+  importAsNewSchedules([r.schedule]);
+  showToast(
+    `已导入课表「${r.schedule.name}」：${r.schedule.courses.length} 门课程`,
+  );
 }
 
 // ---------- 事件绑定 ----------
@@ -1890,6 +1959,7 @@ function bindEvents() {
     importAsNewSchedules([r.schedule]);
   };
   $("btnConfirmImport").onclick = confirmImportChoice;
+  $("btnConfirmIcsFormat").onclick = confirmIcsFormat;
 
   // 周次选择弹窗：点选 toggle、按住滑动连选（pointer capture 后经坐标命中格子）
   $("wdModeBtn").onclick = () => {
@@ -2071,6 +2141,8 @@ function bindEvents() {
   $("btnSaveSettings").onclick = saveSettings;
   $("s_alpha").oninput = (e) =>
     ($("alphaVal").textContent = e.target.value + "%");
+  $("s_saturation").oninput = (e) =>
+    ($("satVal").textContent = e.target.value + "%");
   $("s_itemHeight").oninput = (e) =>
     ($("heightVal").textContent = e.target.value + "px");
   $("s_showColBg").onchange = (e) => {

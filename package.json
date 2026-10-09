@@ -1,6 +1,6 @@
 {
   "name": "campuser",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "CAMPUSER - 本地 · 无广告 · 数据完全本地",
   "main": "main.js",
   "scripts": {
