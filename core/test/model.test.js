@@ -12,7 +12,7 @@ test('migrate: v1 平铺课程 → v2 基础信息+单时间段', () => {
     settings: { termStart: '2026-09-28', classNum: 11 }
   };
   const st = M.migrate(v1);
-  assert.strictEqual(st.format, 'wakeup-local/2');
+  assert.strictEqual(st.format, 'campuser-schedule/2');
   assert.strictEqual(st.schedules.length, 1);
   assert.ok(st.device && st.currentScheduleId);
   const c = st.schedules[0].courses[0];

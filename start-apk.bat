@@ -1,5 +1,5 @@
 @echo off
-rem WakeUp 课程表 本地版 - Android APK 一键构建（Tauri 2）
+rem CampUser 本地版 - Android APK 一键构建（Tauri 2）
 rem 首次使用需一次性安装工具链，缺什么本脚本会给出对应指引：
 rem   1) Rust:        https://rustup.rs  （安装后执行 rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android）
 rem   2) Android Studio（含 SDK + NDK + JDK 17），并在系统变量设置 ANDROID_HOME 与 NDK_HOME

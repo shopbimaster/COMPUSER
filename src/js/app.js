@@ -1,10 +1,13 @@
 // ============================================================
-// WakeUp 课程表 · 本地还原版 · UI 层（v2）
+// CAMPUSER · UI 层（v2）
 // 仅负责渲染与交互：领域逻辑在 core/（model/week/conflict/merge/codec），
-// 平台能力经 Ports 端口注入（adapters/）。数据格式 wakeup-local/2。
+// 平台能力经 Ports 端口注入（adapters/）。数据格式 campuser-schedule/2。
+// 软件名统一取自 branding.js（window.CAMPUSER_BRAND），不得硬编码。
 // ============================================================
 
 // ---------- 常量 ----------
+const BRAND = window.CAMPUSER_BRAND;
+document.title = BRAND.FULL_NAME;
 const COURSE_COLORS = [
   "#e8935a",
   "#9b7fd4",
@@ -29,7 +32,7 @@ const DAY_NAMES = {
 const ODD_NAMES = ["每周", "单周", "双周"];
 let gapPx = 4; // 课程格子边距（px）：课程与列衬底、课程之间的统一间距，render 时按列宽×设置%计算
 
-// 极简线条图标（仿新版 WakeUp 的描边风格，随文字颜色）
+// 线条描边图标（随文字颜色）
 const svgIco = (paths, w = 15) =>
   `<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
 const ICONS = {
@@ -52,14 +55,14 @@ const ICONS = {
 };
 
 // ---------- 内核与端口 ----------
-const M = WakeupModel,
-  W = WakeupWeek,
-  C = WakeupConflict,
-  Mrg = WakeupMerge,
-  Bk = WakeupBackupCodec;
-const Share = WakeupShareCodec,
-  Csv = WakeupCsvCodec,
-  Ics = WakeupIcsCodec;
+const M = CampuserModel,
+  W = CampuserWeek,
+  C = CampuserConflict,
+  Mrg = CampuserMerge,
+  Bk = CampuserBackupCodec;
+const Share = CampuserShareCodec,
+  Csv = CampuserCsvCodec,
+  Ics = CampuserIcsCodec;
 const {
   parseDate,
   fmtDate,
@@ -1316,6 +1319,18 @@ function openSettings() {
     cnMenu.hidden = true;
     buildTimeTable(Number(b.dataset.cn)); // 节数变化即时同步时间表（保留已填值）
   };
+  // 开机自启（应用级开关，经系统登录项；浏览器模式无此能力则隐藏该行）
+  const autoRow = $("rowAutoStart");
+  if (Ports.autostart) {
+    autoRow.hidden = false;
+    Ports.autostart.get().then((on) => ($("s_autoStart").checked = !!on));
+    $("s_autoStart").onchange = async (e) => {
+      const ok = await Ports.autostart.set(e.target.checked);
+      e.target.checked = !!ok; // 以系统实际结果回显（注册失败自动回退）
+    };
+  } else {
+    autoRow.hidden = true;
+  }
   $("s_alpha").value = s.alpha;
   $("alphaVal").textContent = s.alpha + "%";
   $("s_itemHeight").value = s.itemHeight;
@@ -1558,22 +1573,22 @@ async function doExportAction(act) {
   if (act === "backup-all") {
     where = await Ports.share.send(
       Bk.serialize(state),
-      `wakeup-backup-${dateStamp()}.json`,
+      `${BRAND.EXPORT_PREFIX}-backup-${dateStamp()}.json`,
     );
   } else if (act === "share-json") {
     where = await Ports.share.send(
       Bk.serializeShare(sch),
-      `wakeup-share-${base}.json`,
+      `${BRAND.EXPORT_PREFIX}-share-${base}.json`,
     );
   } else if (act === "share-csv") {
     where = await Ports.share.send(
       Csv.toCsv(sch),
-      `wakeup-${base}-${dateStamp()}.csv`,
+      `${BRAND.EXPORT_PREFIX}-${base}-${dateStamp()}.csv`,
     );
   } else if (act === "share-ics") {
     where = await Ports.share.send(
       Ics.toIcs(sch),
-      `wakeup-${base}-${dateStamp()}.ics`,
+      `${BRAND.EXPORT_PREFIX}-${base}-${dateStamp()}.ics`,
     );
   } else if (act === "share-qr") {
     closeModal("shareChoiceModal");

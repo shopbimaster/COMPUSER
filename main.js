@@ -1,14 +1,41 @@
-// WakeUp课程表 本地版 - Electron 主进程
+// CAMPUSER - Electron 主进程
 // 数据完全保存在本地 JSON 文件，无任何网络请求、无广告
+// 软件名等品牌信息统一取自 branding.js（唯一修改接口）
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const BRAND = require('./branding');
 
-const DATA_DIR = path.join(__dirname, 'data');
+// 数据目录：安装版存 %APPDATA%（安装目录可能只读），开发/便携模式存项目内 data/
+const isPortable = !app.isPackaged;
+const DATA_DIR = isPortable
+  ? path.join(__dirname, 'data')
+  : path.join(app.getPath('userData'), 'data');
 const DATA_FILE = path.join(DATA_DIR, 'schedule.json');
 
-// 便携化：userData 指向项目内目录，所有数据（课表 JSON、Electron 配置）保存在本目录
-app.setPath('userData', path.join(DATA_DIR, 'profile'));
+// 便携化：仅开发/便携模式把 userData 指向项目内目录；安装版保持系统默认
+if (isPortable) app.setPath('userData', path.join(DATA_DIR, 'profile'));
+
+// 一次性迁移：品牌更名前（wakeup-schedule-local）的安装版数据 → 现目录
+if (isPackagedMigrationNeeded()) {
+  try {
+    fs.cpSync(migrationSourceDir(), DATA_DIR, { recursive: true });
+    console.log('[migrate] imported data from legacy brand directory');
+  } catch (e) {
+    console.log('[migrate] skipped:', String(e));
+  }
+}
+
+function migrationSourceDir() {
+  return path.join(app.getPath('appData'), 'wakeup-schedule-local', 'data');
+}
+function isPackagedMigrationNeeded() {
+  return (
+    !isPortable &&
+    !fs.existsSync(DATA_FILE) &&
+    fs.existsSync(path.join(migrationSourceDir(), 'schedule.json'))
+  );
+}
 
 function ensureDataFile() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -21,7 +48,8 @@ function createWindow() {
     height: 860,
     minWidth: 860,
     minHeight: 600,
-    title: 'WakeUp 课程表 - 本地版',
+    title: BRAND.FULL_NAME,
+    icon: path.join(__dirname, 'src', 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -53,7 +81,7 @@ ipcMain.handle('data:save', (_e, text) => {
 ipcMain.handle('share:exportFile', async (_e, payload) => {
   const r = await dialog.showSaveDialog({
     title: '导出文件',
-    defaultPath: (payload && payload.defaultName) || 'wakeup-export.txt',
+    defaultPath: (payload && payload.defaultName) || `${BRAND.EXPORT_PREFIX}-export.txt`,
     filters: [{ name: '所有文件', extensions: ['*'] }]
   });
   if (r.canceled || !r.filePath) return null;
@@ -74,6 +102,13 @@ ipcMain.handle('share:importFile', async () => {
   } catch (e) {
     return { name: r.filePaths[0], error: String(e) };
   }
+});
+
+// 开机自启（安装版有效；便携/开发模式登录项需用户登录上下文，同样可用）
+ipcMain.handle('autostart:get', () => app.getLoginItemSettings().openAtLogin);
+ipcMain.handle('autostart:set', (_e, on) => {
+  app.setLoginItemSettings({ openAtLogin: !!on });
+  return app.getLoginItemSettings().openAtLogin;
 });
 
 app.whenReady().then(() => {

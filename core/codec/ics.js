@@ -1,15 +1,15 @@
 /*!
- * WakeUp 课程表本地版 · 领域内核：iCal (.ics) 导出
+ * CampUser 课程表模块 · 领域内核：iCal (.ics) 导出
  * 还原原版"导出 iCal 文件"：每个时间段一个 VEVENT，
  * RRULE=WEEKLY 按周重复（单双周 INTERVAL=2），含 VTIMEZONE（Asia/Shanghai）。
  */
 (function (root, factory) {
   const deps = (typeof module === 'object' && module.exports)
     ? { Model: require('../model.js'), Week: require('../week.js'), Conflict: require('../conflict.js') }
-    : { Model: root.WakeupModel, Week: root.WakeupWeek, Conflict: root.WakeupConflict };
+    : { Model: root.CampuserModel, Week: root.CampuserWeek, Conflict: root.CampuserConflict };
   const api = factory(deps);
   if (typeof module === 'object' && module.exports) module.exports = api;
-  else root.WakeupIcsCodec = api;
+  else root.CampuserIcsCodec = api;
 })(typeof self !== 'undefined' ? self : this, function (deps) {
   const { Model, Week, Conflict } = deps;
 
@@ -69,7 +69,7 @@
     const lines = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
-      'PRODID:-//WakeUp Schedule Local//CN//',
+      'PRODID:-//CampUser//CN//',
       'CALSCALE:GREGORIAN',
       'METHOD:PUBLISH',
       'X-WR-CALNAME:' + escText(schedule.name),

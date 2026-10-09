@@ -1,10 +1,10 @@
 /*!
- * WakeUp 课程表本地版 · 领域内核：周次与日期计算（纯函数，零平台依赖）
- * UMD：浏览器挂 window.WakeupWeek；Node 环境 module.exports 供单元测试
+ * CampUser 课程表模块 · 领域内核：周次与日期计算（纯函数，零平台依赖）
+ * UMD：浏览器挂 window.CampuserWeek；Node 环境 module.exports 供单元测试
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.WakeupWeek = factory();
+  else root.CampuserWeek = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 

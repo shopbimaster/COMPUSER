@@ -1,7 +1,7 @@
 /*!
- * WakeUp 课程表本地版 · 领域内核：数据模型 v2（纯函数，零平台依赖）
+ * CampUser 课程表模块 · 领域内核：数据模型 v2（纯函数，零平台依赖）
  *
- * 数据格式 wakeup-local/2（同步就绪）：
+ * 数据格式 campuser-schedule/2（同步就绪）：
  *   AppState   { format, device, updatedAt, prefs, currentScheduleId, schedules[] }
  *   Schedule   { id, name, updatedAt, settings, courses[], tombstones{} }   ← 多课表，配置独立
  *   Course     { id, updatedAt, name, color, credit, note, timeSlots[] }    ← 基础信息 + 多时间段
@@ -15,11 +15,11 @@
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.WakeupModel = factory();
+  else root.CampuserModel = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const FORMAT = 'wakeup-local/2';
+  const FORMAT = 'campuser-schedule/2';
 
   // 与原版一致的默认时间表（苏大 11 节 + 扩展到 16 节占位）
   const DEFAULT_TIMES = [

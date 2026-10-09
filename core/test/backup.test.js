@@ -29,7 +29,7 @@ test('单表分享：serializeShare → parseAuto 识别为 share', () => {
 
 test('v1 旧备份自动迁移', () => {
   const v1Text = JSON.stringify({
-    app: 'wakeup-schedule-local', version: 1,
+    app: 'campuser', version: 1,
     courses: [{ id: 'c1', name: '旧课', day: 3, start: 1, step: 2, startWeek: 1, endWeek: 16, isOdd: 0 }],
     settings: { termStart: '2026-09-28' }
   });

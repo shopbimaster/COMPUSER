@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1024" height="1024" viewBox="0 0 329 329" role="img" aria-labelledby="title desc">
+<title id="title">Symmetric gabled building app icon</title>
+<desc id="desc">Complete artwork shifted up 28 units, doubling bottom padding from 28 to 56 units on a 329-unit canvas; side padding remains 28 units. Dark red walls are twenty percent shorter, from 106 to 84.8 units. Central trapezoid and side roofs share the same top and bottom boundaries. The central opening is a horizontal ellipse, radii 11.5 and 6.5. A common 3-unit clear gap separates neighboring color blocks. All exposed corners and steel ends are rounded. Red saturation is reduced by two successive ten-percent steps from the color-managed reference.</desc>
+<defs>
+  <mask id="structural-clearance" maskUnits="userSpaceOnUse" x="0" y="0" width="329" height="329">
+    <rect width="329" height="329" fill="white"/>
+    <path d="M164.5 161.2 L194.5 213.1615242270663 V301 H134.5 V213.1615242270663 Z" fill="black"/>
+    <path d="M161.901924 135.7 A3 3 0 0 1 167.098076 135.7 L203.098076 198.053829 A3 3 0 0 1 203.5 199.553829 L203.5 297 A4 4 0 0 1 199.5 301 L198.5 301 A4 4 0 0 1 194.5 297 L194.5 213.697423 A2 2 0 0 0 194.232051 212.697423 L166.232051 164.2 A2 2 0 0 0 162.767949 164.2 L134.767949 212.697423 A2 2 0 0 0 134.5 213.697423 L134.5 297 A4 4 0 0 1 130.5 301 L129.5 301 A4 4 0 0 1 125.5 297 L125.5 199.553829 A3 3 0 0 1 125.901924 198.053829 Z" fill="black" stroke="black" stroke-width="6" stroke-linejoin="round"/>
+    <g id="left-clearance" fill="none" stroke="black" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"><path d="M52.5 296.5 V211.2 L82.5 175.2 M90.5 296.5 V211.2 L117.5 175.2"/></g>
+    <use href="#left-clearance" transform="translate(329 0) scale(-1 1)"/>
+  </mask>
+</defs>
+<rect width="329" height="329" fill="#FFFFFF"/>
+<g transform="translate(0 -28)">
+<g>
+  <!-- Side colors are separated from every structural member by the same 3-unit channel. -->
+  <g mask="url(#structural-clearance)">
+    <rect x="28" y="183.2" width="273" height="30" rx="3" fill="#808080"/>
+    <g fill="#B53C3C">
+      <path id="side-wall" d="M28 219.2 A3 3 0 0 1 31 216.2 L119.5 216.2 A3 3 0 0 1 122.5 219.2 L122.5 296 A5 5 0 0 1 117.5 301 L35 301 A7 7 0 0 1 28 294 Z"/>
+      <use href="#side-wall" transform="translate(329 0) scale(-1 1)"/>
+    </g>
+  </g>
+  <!-- Central roof shares both horizontal boundaries with the side roofs. -->
+  <path d="M154.540708 184.45 A2.5 2.5 0 0 1 156.705771 183.2 L172.294229 183.2 A2.5 2.5 0 0 1 174.459292 184.45 L188.893049 209.45 A2.5 2.5 0 0 1 186.727985 213.2 L142.272015 213.2 A2.5 2.5 0 0 1 140.106951 209.45 Z M176 198.2 A11.5 6.5 0 1 0 153 198.2 A11.5 6.5 0 1 0 176 198.2 Z" fill="#808080" fill-rule="evenodd"/>
+  <path d="M137.5 219.2 A3 3 0 0 1 140.5 216.2 L188.5 216.2 A3 3 0 0 1 191.5 219.2 L191.5 296 A5 5 0 0 1 186.5 301 L179.5 301 A5 5 0 0 1 174.5 296 L174.5 268 A3 3 0 0 0 171.5 265 L157.5 265 A3 3 0 0 0 154.5 268 L154.5 296 A5 5 0 0 1 149.5 301 L142.5 301 A5 5 0 0 1 137.5 296 Z" fill="#B53C3C"/>
+  <path d="M161.901924 135.7 A3 3 0 0 1 167.098076 135.7 L203.098076 198.053829 A3 3 0 0 1 203.5 199.553829 L203.5 297 A4 4 0 0 1 199.5 301 L198.5 301 A4 4 0 0 1 194.5 297 L194.5 213.697423 A2 2 0 0 0 194.232051 212.697423 L166.232051 164.2 A2 2 0 0 0 162.767949 164.2 L134.767949 212.697423 A2 2 0 0 0 134.5 213.697423 L134.5 297 A4 4 0 0 1 130.5 301 L129.5 301 A4 4 0 0 1 125.5 297 L125.5 199.553829 A3 3 0 0 1 125.901924 198.053829 Z" fill="#FA5253"/>
+  <g id="left-steel" stroke="#FA5253" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M52.5 296.5 V211.2 L82.5 175.2 M90.5 296.5 V211.2 L117.5 175.2"/>
+  </g>
+  <use href="#left-steel" transform="translate(329 0) scale(-1 1)"/>
+</g></g>
+</svg>

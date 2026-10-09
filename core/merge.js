@@ -1,5 +1,5 @@
 /*!
- * WakeUp 课程表本地版 · 领域内核：LWW 合并引擎（纯函数，零平台依赖）
+ * CampUser 课程表模块 · 领域内核：LWW 合并引擎（纯函数，零平台依赖）
  * 为离线分享与未来 P2P 同步服务：双方各自 merge(local, remote)，
  * 无需服务器协调即可收敛到一致结果。
  *
@@ -12,7 +12,7 @@
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.WakeupMerge = factory();
+  else root.CampuserMerge = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 

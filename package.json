@@ -1,12 +1,14 @@
 {
-  "name": "wakeup-schedule-local",
-  "version": "1.0.0",
-  "description": "WakeUp课程表 本地还原版 - 无广告无会员，数据完全本地",
+  "name": "campuser",
+  "version": "1.5.0",
+  "description": "CAMPUSER - 本地 · 无广告 · 数据完全本地",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "test": "node --test core/test/*.test.js",
     "serve": "npx serve src",
+    "predist": "node scripts/apply-branding.mjs",
+    "dist": "electron-builder --win nsis --publish never",
     "prepare-tauri": "node scripts/prepare-tauri.mjs",
     "apk": "node scripts/prepare-tauri.mjs && npx -y @tauri-apps/cli@latest android build --apk --target aarch64",
     "release": "powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1"
@@ -14,9 +16,48 @@
   "author": "CAMPUSER",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^33.4.11"
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8"
   },
   "dependencies": {
     "qrcode-generator": "^2.0.4"
+  },
+  "build": {
+    "appId": "com.campuser.app",
+    "productName": "CAMPUSER",
+    "directories": {
+      "output": "release/installer"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "branding.js",
+      "src/**/*",
+      "core/**/*",
+      "adapters/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": false,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CAMPUSER",
+      "artifactName": "CAMPUSER-Setup-${version}.${ext}",
+      "include": "build/installer.nsh"
+    }
   }
 }

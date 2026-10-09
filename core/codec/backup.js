@@ -1,22 +1,22 @@
 /*!
- * WakeUp 课程表本地版 · 领域内核：备份与分享文件编解码（纯逻辑）
+ * CampUser 课程表模块 · 领域内核：备份与分享文件编解码（纯逻辑）
  *
  * 两种文件格式：
- *   完整备份  { format:'wakeup-local/2', device, ..., schedules[] }
- *   单表分享  { format:'wakeup-share/1', exportedAt, schedule }   ← 对应原版"分享课表"
+ *   完整备份  { format:'campuser-schedule/2', device, ..., schedules[] }
+ *   单表分享  { format:'campuser-share/1', exportedAt, schedule }   ← 对应原版"分享课表"
  */
 (function (root, factory) {
   const deps = (typeof module === 'object' && module.exports)
     ? { Model: require('../model.js') }
-    : { Model: root.WakeupModel };
+    : { Model: root.CampuserModel };
   const api = factory(deps);
   if (typeof module === 'object' && module.exports) module.exports = api;
-  else root.WakeupBackupCodec = api;
+  else root.CampuserBackupCodec = api;
 })(typeof self !== 'undefined' ? self : this, function (deps) {
   const { Model } = deps;
 
-  const BACKUP_FORMAT = 'wakeup-local/2';
-  const SHARE_FORMAT = 'wakeup-share/1';
+  const BACKUP_FORMAT = 'campuser-schedule/2';
+  const SHARE_FORMAT = 'campuser-share/1';
 
   // ---- 完整备份 ----
   function serialize(state) {

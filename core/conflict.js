@@ -1,11 +1,11 @@
 /*!
- * WakeUp 课程表本地版 · 领域内核：课程冲突检测（纯函数，零平台依赖）
+ * CampUser 课程表模块 · 领域内核：课程冲突检测（纯函数，零平台依赖）
  * "时间段"(slot) 需含 {day, start, step, weeks}（'0'/'1' 位串，唯一真源），
  * 兼容旧字段 {startWeek, endWeek, isOdd}（0=每周 1=单周 2=双周，v1 平铺课程对象天然 slot 兼容）
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.WakeupConflict = factory();
+  else root.CampuserConflict = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 

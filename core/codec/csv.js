@@ -1,5 +1,5 @@
 /*!
- * WakeUp 课程表本地版 · 领域内核：CSV（Excel）导入导出
+ * CampUser 课程表模块 · 领域内核：CSV（Excel）导入导出
  * 还原原版"Excel 模板导入"：CSV 既是人可编辑的模板，也是程序可解析的数据。
  * 列：星期,开始节,结束节,开始周,结束周,周类型,课程名,教师,教室,颜色,学分,备注
  * 导入时按（课程名,颜色,学分,备注）聚合为多时间段课程。
@@ -7,10 +7,10 @@
 (function (root, factory) {
   const deps = (typeof module === 'object' && module.exports)
     ? { Model: require('../model.js') }
-    : { Model: root.WakeupModel };
+    : { Model: root.CampuserModel };
   const api = factory(deps);
   if (typeof module === 'object' && module.exports) module.exports = api;
-  else root.WakeupCsvCodec = api;
+  else root.CampuserCsvCodec = api;
 })(typeof self !== 'undefined' ? self : this, function (deps) {
   const { Model } = deps;
 

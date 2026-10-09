@@ -1,5 +1,5 @@
 /*!
- * WakeUp 课程表本地版 · 领域内核：QR 码 / 文本口令编解码
+ * CampUser 课程表模块 · 领域内核：QR 码 / 文本口令编解码
  * 离线版"分享口令"：单表分享 JSON → deflate 压缩 → base64url，
  * 前缀 WU1:（压缩）/ WU0:（原文，压缩不可用时降级）。
  * 全程无网络：传输介质是屏幕（QR）与剪贴板（口令）。
@@ -7,10 +7,10 @@
 (function (root, factory) {
   const deps = (typeof module === 'object' && module.exports)
     ? { Backup: require('./backup.js') }
-    : { Backup: root.WakeupBackupCodec };
+    : { Backup: root.CampuserBackupCodec };
   const api = factory(deps);
   if (typeof module === 'object' && module.exports) module.exports = api;
-  else root.WakeupShareCodec = api;
+  else root.CampuserShareCodec = api;
 })(typeof self !== 'undefined' ? self : this, function (deps) {
   const { Backup } = deps;
 

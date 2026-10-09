@@ -7,8 +7,10 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:"
     />
-    <title>WakeUp 课程表 - 本地版</title>
+    <title>CAMPUSER</title>
+    <link rel="icon" type="image/png" href="assets/icon.png" />
     <link rel="stylesheet" href="css/style.css" />
+    <script src="../branding.js"></script>
   </head>
   <body>
     <!-- 顶栏：周标题（点击打开周数面板）+ 右侧图标组 -->
@@ -469,6 +471,16 @@
                 maxlength="30"
                 style="text-align: right"
               />
+            </div>
+          </div>
+
+          <div class="set-group">应用</div>
+          <div class="set-card">
+            <div class="set-row" id="rowAutoStart">
+              <span class="sr-label">开机自动启动</span>
+              <div class="sr-ctrl">
+                <input type="checkbox" id="s_autoStart" />
+              </div>
             </div>
           </div>
 

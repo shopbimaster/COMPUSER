@@ -18,6 +18,10 @@
       send: (text, defaultName) => window.electronAPI.exportFile({ text: String(text), defaultName }),
       // 接收：弹出打开对话框读文件，返回 {name, text} | {name, error} | null
       receive: () => window.electronAPI.importFile()
+    },
+    autostart: {
+      get: () => window.electronAPI.autostartGet(),
+      set: (on) => window.electronAPI.autostartSet(on)
     }
   };
 })();
