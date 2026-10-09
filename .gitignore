@@ -1,8 +1,9 @@
 # ---- 依赖与构建产物 ----
 node_modules/
 dist/
-build/
-# NSIS 自定义安装脚本为源码（branding.nsh 为 apply-branding 生成物，不入库）
+# build/ 下为图标与 NSIS 脚本等源码资产；ignore 用 /* 而非 /，
+# 否则目录级排除会令 !build/installer.nsh 的负模式失效
+build/*
 !build/installer.nsh
 *.log
 
