@@ -2,6 +2,8 @@
 node_modules/
 dist/
 build/
+# NSIS 自定义安装脚本为源码（branding.nsh 为 apply-branding 生成物，不入库）
+!build/installer.nsh
 *.log
 
 # ---- 发布产物 ----
