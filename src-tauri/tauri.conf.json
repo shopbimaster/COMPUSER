@@ -1,15 +1,15 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "WakeUp课程表本地版",
-  "version": "1.4.0",
-  "identifier": "com.campuser.wakeuplocal",
+  "productName": "CAMPUSER",
+  "version": "2.0.0",
+  "identifier": "com.campuser.app",
   "build": {
     "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
-        "title": "WakeUp 课程表 - 本地版",
+        "title": "CAMPUSER",
         "width": 1280,
         "height": 860,
         "minWidth": 860,
@@ -24,6 +24,8 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": []
+    "icon": [
+      "icons/icon.png"
+    ]
   }
 }

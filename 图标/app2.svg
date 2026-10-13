@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 329 329" role="img" aria-labelledby="title desc">
+<title id="title">Refined HUST history museum icon</title>
+<desc id="desc">Refined HUST history museum icon with structural clearances set to sixty-five percent of the original refined version: 3.3475 viewBox units. Roof-to-wall gaps, vertical beam-to-wall gaps and perpendicular beam-to-roof gaps share this width. All five enlarged doors retain their dimensions: widths 24, 19.2 and 15.36 units; heights 43.2, 32.4 and 21.6 units from center outward. Artwork position, colors, ellipse, steel members and rounded corners are preserved. Cutouts are transparent; artwork is exactly mirrored.</desc>
+<defs>
+  <path id="beam-shape" d="M54.9 301 A2.1 2.1 0 0 0 57 298.9 L57 213.73435 A2.5 2.5 0 0 1 57.579447 212.133889 L87.493438 176.237099 A2.1 2.1 0 0 0 87.224561 173.279447 L83.537099 170.206562 A2.1 2.1 0 0 0 80.579447 170.475439 L48.579447 208.875439 A2.5 2.5 0 0 0 48 210.4759 L48 298.9 A2.1 2.1 0 0 0 50.1 301 Z M92.9 301 A2.1 2.1 0 0 0 95 298.9 L95 213.533333 A2.5 2.5 0 0 1 95.5 212.033333 L122.54 175.98 A2.1 2.1 0 0 0 122.12 173.04 L118.28 170.16 A2.1 2.1 0 0 0 115.34 170.58 L86.5 209.033333 A2.5 2.5 0 0 0 86 210.533333 L86 298.9 A2.1 2.1 0 0 0 88.1 301 Z"/>
+  <path id="tower-shape" d="M162.334936 134.95 A2.5 2.5 0 0 1 166.665064 134.95 L203.165064 198.169854 A2.5 2.5 0 0 1 203.5 199.419854 L203.5 298.9 A2.1 2.1 0 0 1 201.4 301 L196.6 301 A2.1 2.1 0 0 1 194.5 298.9 L194.5 213.697423 A2 2 0 0 0 194.232051 212.697423 L166.232051 164.2 A2 2 0 0 0 162.767949 164.2 L134.767949 212.697423 A2 2 0 0 0 134.5 213.697423 L134.5 298.9 A2.1 2.1 0 0 1 132.4 301 L127.6 301 A2.1 2.1 0 0 1 125.5 298.9 L125.5 199.419854 A2.5 2.5 0 0 1 125.834936 198.169854 Z"/>
+  <mask id="structural-clearance" maskUnits="userSpaceOnUse" x="0" y="0" width="329" height="329">
+    <rect width="329" height="329" fill="white"/>
+    <path d="M164.5 161.2 L194.5 213.1615242270663 V301 H134.5 V213.1615242270663 Z" fill="black"/>
+    <use href="#tower-shape" fill="black" stroke="black" stroke-width="6.695" stroke-linejoin="round"/>
+    <g fill="black" stroke="black" stroke-width="6.695" stroke-linejoin="round">
+      <use href="#beam-shape"/>
+      <use href="#beam-shape" transform="translate(329 0) scale(-1 1)"/>
+    </g>
+  </mask>
+</defs>
+
+<g transform="translate(0 -48)">
+  <g mask="url(#structural-clearance)">
+    <rect x="28" y="183.2" width="273" height="30" rx="3" fill="#1F59BE"/>
+    <path id="side-wall" d="M28 219.5475 A3 3 0 0 1 31 216.5475 L119.1525 216.5475 A3 3 0 0 1 122.1525 219.5475 L122.1525 266.2 A2.4 2.4 0 0 1 119.7525 268.6 L108.7 268.6 A2.4 2.4 0 0 0 106.3 271 L106.3 297.4 A3.6 3.6 0 0 1 102.7 301 L94.1 301 A3.6 3.6 0 0 1 90.5 297.4 L90.5 281.8 A2.4 2.4 0 0 0 88.1 279.4 L73.04 279.4 A2.4 2.4 0 0 0 70.64 281.8 L70.64 297.4 A3.6 3.6 0 0 1 67.04 301 L35 301 A7 7 0 0 1 28 294 Z" fill="#B53C3C"/>
+    <use href="#side-wall" transform="translate(329 0) scale(-1 1)"/>
+  </g>
+  <path d="M154.941966 184.45 A2.5 2.5 0 0 1 157.10703 183.2 L171.89297 183.2 A2.5 2.5 0 0 1 174.058034 184.45 L188.49179 209.45 A2.5 2.5 0 0 1 186.326727 213.2 L142.673273 213.2 A2.5 2.5 0 0 1 140.50821 209.45 Z M177.15 198.2 A12.65 7.15 0 1 0 151.85 198.2 A12.65 7.15 0 1 0 177.15 198.2 Z" fill="#1F59BE" fill-rule="evenodd"/>
+  <path d="M137.8475 219.5475 A3 3 0 0 1 140.8475 216.5475 L188.1525 216.5475 A3 3 0 0 1 191.1525 219.5475 L191.1525 296 A5 5 0 0 1 186.1525 301 L182.5 301 A6 6 0 0 1 176.5 295 L176.5 261.4 A3.6 3.6 0 0 0 172.9 257.8 L156.1 257.8 A3.6 3.6 0 0 0 152.5 261.4 L152.5 295 A6 6 0 0 1 146.5 301 L142.8475 301 A5 5 0 0 1 137.8475 296 Z" fill="#B53C3C"/>
+  <g fill="#FA5253">
+    <use href="#tower-shape"/>
+    <use href="#beam-shape"/>
+    <use href="#beam-shape" transform="translate(329 0) scale(-1 1)"/>
+  </g>
+</g>
+</svg>

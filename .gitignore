@@ -5,6 +5,7 @@ dist/
 # 否则目录级排除会令 !build/installer.nsh 的负模式失效
 build/*
 !build/installer.nsh
+!build/icon.png
 *.log
 
 # ---- 发布产物 ----

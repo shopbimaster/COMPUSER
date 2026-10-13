@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost"
     />
     <title>CAMPUSER</title>
     <link rel="icon" type="image/png" href="assets/icon.png" />
@@ -1025,6 +1025,7 @@
     <script src="../core/codec/csv.js"></script>
     <script src="../core/codec/ics.js"></script>
     <script src="../adapters/electron-bridge.js"></script>
+    <script src="../adapters/tauri-bridge.js"></script>
     <script src="../adapters/browser-bridge.js"></script>
     <script src="js/app.js"></script>
   </body>

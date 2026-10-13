@@ -2283,7 +2283,8 @@ function readSlotFromCard(card) {
 
 // ---------- 启动 ----------
 async function init() {
-  if (!Ports.isElectron) $("modeBadge").hidden = false;
+  // 本地应用（Electron/Tauri）数据落应用目录，无需提示；仅浏览器模式提示 localStorage
+  if (!Ports.isElectron && !Ports.isTauri) $("modeBadge").hidden = false;
 
   const text = await Ports.storage.load();
   let raw = null,

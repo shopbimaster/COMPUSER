@@ -19,7 +19,7 @@
 
 !macro customPageAfterChangeDir
   PageEx custom
-    PageCallbacks nsOptionsPageCreate
+    PageCallbacks nsOptionsPageCreate nsOptionsPageLeave
   PageExEnd
 !macroend
 
@@ -46,9 +46,15 @@ Function nsOptionsPageCreate
   Pop $AUTOSTART_CB
   ${NSD_SetState} $AUTOSTART_CB 1
   nsDialogs::Show
+  options_done:
+FunctionEnd
+
+; 控件状态必须在 leave 回调读取（官方 nsDialogs 模式）：
+; Show 返回后对话框即销毁，在 create 函数尾部读取会得到 0
+; ——这是 GUI 勾选"创建桌面快捷方式"不生效的根因（静默走默认值故正常）
+Function nsOptionsPageLeave
   ${NSD_GetState} $DESKTOP_CB $DESKTOP_STATE
   ${NSD_GetState} $AUTOSTART_CB $AUTOSTART_STATE
-  options_done:
 FunctionEnd
 !endif
 

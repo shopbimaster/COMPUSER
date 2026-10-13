@@ -30,4 +30,15 @@ const nsh = `; 由 scripts/apply-branding.mjs 自动生成（源：branding.js�
 `;
 writeFileSync(join(root, 'build', 'branding.nsh'), nsh, 'utf8');
 
-console.log(`[apply-branding] ${brand.APP_NAME} → package.json / build/branding.nsh`);
+// ---- src-tauri/tauri.conf.json：Tauri 壳品牌与版本（Android 包名 = identifier） ----
+const tauriPath = join(root, 'src-tauri', 'tauri.conf.json');
+const tauri = JSON.parse(readFileSync(tauriPath, 'utf8'));
+tauri.productName = brand.APP_NAME;
+tauri.version = pkg.version;
+tauri.identifier = brand.APP_ID;
+if (Array.isArray(tauri.app?.windows)) {
+  for (const w of tauri.app.windows) w.title = brand.APP_NAME;
+}
+writeFileSync(tauriPath, JSON.stringify(tauri, null, 2) + '\n', 'utf8');
+
+console.log(`[apply-branding] ${brand.APP_NAME} → package.json / build/branding.nsh / src-tauri/tauri.conf.json`);
