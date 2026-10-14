@@ -16,10 +16,11 @@ $env:Path = "D:\VScode\rust\cargo\bin;$env:JAVA_HOME\bin;$env:ANDROID_HOME\platf
 Set-Location $root
 node scripts/prepare-tauri.mjs
 
-# 1) Rust aarch64 release（NDK clang 作链接器——Tauri CLI 原本注入的环境）
+# 1) Rust aarch64 release（NDK clang 作链接器——Tauri CLI 原本注入的环境；
+#    custom-protocol 必须显式启用：CLI 构建 release 时自动加，绕过 CLI 会丢）
 $env:CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER = "$env:NDK_HOME\toolchains\llvm\prebuilt\windows-x86_64\bin\aarch64-linux-android24-clang.cmd"
 Set-Location "$root\src-tauri"
-cargo build --release --target aarch64-linux-android
+cargo build --release --target aarch64-linux-android --features custom-protocol
 if ($LASTEXITCODE -ne 0) { throw 'cargo build failed' }
 
 # 2) 真实拷贝 .so（替代 CLI 的符号链接）

@@ -46,12 +46,14 @@ const PLAN = [
 ];
 const DENS = [['mdpi', 48], ['hdpi', 72], ['xhdpi', 96], ['xxhdpi', 144], ['xxxhdpi', 192]];
 const FDENS = [['mdpi', 108], ['hdpi', 162], ['xhdpi', 216], ['xxhdpi', 324], ['xxxhdpi', 432]];
+// 自适应图标前景层：108dp 画布仅中心 66dp 安全区可见（Google 规范，最严格的圆形裁切）。
+// 要求可见区内图形宽占 83%（app2-256 构图：左右各 ~8.5% 空隙）→ pct = 0.83 × 66/108 ≈ 0.51
 for (const [d, s] of DENS)
   PLAN.push({ file: `release/android-icons/mipmap-${d}/ic_launcher.png`, size: s, pct: 0.8, bg: 'rounded' });
 for (const [d, s] of DENS)
   PLAN.push({ file: `release/android-icons/mipmap-${d}/ic_launcher_round.png`, size: s, pct: 0.66, bg: 'circle' });
 for (const [d, s] of FDENS)
-  PLAN.push({ file: `release/android-icons/drawable-${d}/ic_launcher_foreground.png`, size: s, pct: 0.66, bg: 'none' });
+  PLAN.push({ file: `release/android-icons/drawable-${d}/ic_launcher_foreground.png`, size: s, pct: 0.51, bg: 'none' });
 
 const html = `<!doctype html><meta charset="utf-8"><canvas id="c"></canvas><script>
 window.render = (jobs) => Promise.all(jobs.map((j) => new Promise((res) => {
@@ -110,7 +112,10 @@ app.whenReady().then(async () => {
     offset += blobs[i].length;
   });
   fs.mkdirSync(path.join(ROOT, 'src-tauri', 'icons'), { recursive: true });
-  fs.writeFileSync(path.join(ROOT, 'src-tauri', 'icons', 'icon.ico'), Buffer.concat([header, entries, ...blobs]));
-  console.log('[icon] src-tauri/icons/icon.ico', 6 + 16 * ICO_SIZES.length + blobs.reduce((a, b) => a + b.length, 0), 'bytes');
+  const icoBuf = Buffer.concat([header, entries, ...blobs]);
+  fs.writeFileSync(path.join(ROOT, 'src-tauri', 'icons', 'icon.ico'), icoBuf);
+  // electron-builder 嵌 exe 图标（rcedit）用：多尺寸 ico 直接指定，避免 png 单帧转换
+  fs.writeFileSync(path.join(ROOT, 'build', 'icon.ico'), icoBuf);
+  console.log('[icon] src-tauri/icons/icon.ico + build/icon.ico', icoBuf.length, 'bytes');
   app.exit(fail ? 1 : 0);
 }).catch((e) => { console.error(e); app.exit(1); });

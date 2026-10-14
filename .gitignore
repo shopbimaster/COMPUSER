@@ -6,6 +6,7 @@ dist/
 build/*
 !build/installer.nsh
 !build/icon.png
+!build/icon.ico
 *.log
 
 # ---- 发布产物 ----
@@ -17,6 +18,7 @@ campus.token
 # ---- 运行时数据（课表数据与 Electron 便携配置，均属本地状态）----
 data/
 .electron-cache/
+.electron-builder-cache/
 
 # ---- 本地测试素材（含个人课表数据，不入库）----
 测试文件/
