@@ -52,6 +52,9 @@ html,
 body {
   height: 100%;
   overflow: hidden;
+  /* Android WebView 的字体自动放大（Text Autosizing）会让顶栏文字巨大化重叠，显式关闭 */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -63,6 +66,9 @@ body {
   color: var(--text);
   display: flex;
   flex-direction: column;
+  /* 移动端（Tauri Android edge-to-edge）：让出系统状态栏/手势条，背景渐变自然延伸 */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 button {
@@ -255,7 +261,7 @@ select option {
 
 .grid {
   display: grid;
-  grid-template-columns: 46px repeat(var(--day-count, 7), 1fr);
+  grid-template-columns: 40px repeat(var(--day-count, 7), 1fr);
   grid-template-rows: 40px 1fr;
   gap: 0 4px;
   min-height: 100%;
@@ -1805,4 +1811,66 @@ textarea {
 
 [hidden] {
   display: none !important;
+}
+
+/* ============ 窄屏（手机 / 移动端 WebView）适配 ============
+   手机上顶栏固有的居中课表名 + 210px 周数块必然重叠：改为左对齐随流布局，
+   字号整体收紧，右侧按钮缩小，给 7 列课表留出宽度 */
+@media (max-width: 620px) {
+  .topbar {
+    padding: 8px 12px 2px;
+    gap: 6px;
+  }
+  .tb-left {
+    min-width: 0;
+    align-items: flex-start;
+    padding: 2px 6px 4px;
+  }
+  .tb-title {
+    font-size: 16px;
+  }
+  .tb-status {
+    font-size: 11.5px;
+  }
+  .tb-date {
+    font-size: 11px;
+    text-align: left;
+  }
+  .tb-center {
+    position: static;
+    transform: none;
+    font-size: 15px;
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-top: 2px;
+  }
+  .tb-actions {
+    gap: 0;
+  }
+  .tb-icon {
+    width: 32px;
+    height: 32px;
+  }
+  .tb-icon svg {
+    width: 19px;
+    height: 19px;
+  }
+  .schedule-wrap {
+    padding: 6px 8px 16px;
+  }
+  .time-col .sec {
+    font-size: 9px;
+    line-height: 1.3;
+  }
+  .time-col .sec .sec-no {
+    font-size: 12px;
+  }
+  .day-header .day-date {
+    font-size: 10px;
+  }
+  .day-header.is-today .day-date {
+    padding: 0 5px;
+  }
 }

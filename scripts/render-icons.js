@@ -39,6 +39,32 @@ function svgCompose(size, pct, bg) {
   );
 }
 
+// RGBA（canvas 顺序，自顶向下）→ ICO 的 DIB 帧：BITMAPINFOHEADER + BGRA（自底向上）+ AND mask
+function rgbaToDib(rgba, w, h) {
+  const maskRow = ((w + 31) >> 5) << 2; // mask 行按 32bit 对齐
+  const pxSize = w * h * 4;
+  const maskSize = maskRow * h;
+  const buf = Buffer.alloc(40 + pxSize + maskSize);
+  buf.writeUInt32LE(40, 0);                 // biSize
+  buf.writeInt32LE(w, 4);                   // biWidth
+  buf.writeInt32LE(h * 2, 8);               // biHeight：像素 + mask 双高
+  buf.writeUInt16LE(1, 12);                 // biPlanes
+  buf.writeUInt16LE(32, 14);                // biBitCount
+  buf.writeUInt32LE(pxSize + maskSize, 20); // biSizeImage
+  for (let y = 0; y < h; y++) {
+    const src = (h - 1 - y) * w * 4;        // DIB 像素自底向上
+    const dst = 40 + y * w * 4;
+    for (let x = 0; x < w; x++) {
+      const s = src + x * 4, d = dst + x * 4;
+      buf[d] = rgba[s + 2];                 // B
+      buf[d + 1] = rgba[s + 1];             // G
+      buf[d + 2] = rgba[s];                 // R
+      buf[d + 3] = rgba[s + 3];             // A（mask 全 0 时 alpha 即生效）
+    }
+  }
+  return buf;
+}
+
 const PLAN = [
   { file: 'build/icon.png', size: 1024, pct: 0.8, bg: 'rounded' },
   { file: 'src/assets/icon.png', size: 512, pct: 0.8, bg: 'rounded' },
@@ -56,7 +82,7 @@ for (const [d, s] of FDENS)
   PLAN.push({ file: `release/android-icons/drawable-${d}/ic_launcher_foreground.png`, size: s, pct: 0.51, bg: 'none' });
 
 const html = `<!doctype html><meta charset="utf-8"><canvas id="c"></canvas><script>
-window.render = (jobs) => Promise.all(jobs.map((j) => new Promise((res) => {
+window.render = (jobs, raw) => Promise.all(jobs.map((j) => new Promise((res) => {
   const img = new Image();
   img.onload = () => {
     const c = document.getElementById('c');
@@ -64,11 +90,18 @@ window.render = (jobs) => Promise.all(jobs.map((j) => new Promise((res) => {
     const ctx = c.getContext('2d');
     ctx.clearRect(0, 0, c.width, c.height);
     ctx.drawImage(img, 0, 0);
-    res([j.file, c.toDataURL('image/png')]);
+    if (raw) {
+      const rgba = Array.from(ctx.getImageData(0, 0, c.width, c.height).data);
+      res([j.file, { dataUrl: c.toDataURL('image/png'), rgba }]);
+    } else {
+      res([j.file, c.toDataURL('image/png')]);
+    }
   };
   img.onerror = () => res([j.file, null]);
   img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(j.svg);
-}))).then(Object.fromEntries);
+}))).then((pairs) => raw
+  ? Object.fromEntries(pairs.map(([f, v]) => [f, v]))
+  : Object.fromEntries(pairs.map(([f, v]) => [f, v])));
 </script>`;
 
 app.whenReady().then(async () => {
@@ -88,13 +121,17 @@ app.whenReady().then(async () => {
     console.log('[icon]', file, fs.statSync(dst).size, 'bytes');
   }
 
-  // Windows .ico（PNG 内嵌多尺寸）：Tauri 桌面资源编译必需
+  // Windows .ico：≤128 帧必须用 DIB（BITMAPINFOHEADER+BGRA）——Windows shell 小尺寸
+  // 只可靠解析 BMP 帧，PNG 帧仅 256×256 规范支持（此前全 PNG 导致快捷方式图标空白）
   const ICO_SIZES = [16, 24, 32, 48, 64, 128, 256];
-  const icoJobs = ICO_SIZES.map((s) => ({ s, svg: svgCompose(s, 0.8, 'rounded') }));
-  const icoPngs = await win.webContents.executeJavaScript(
-    `render(${JSON.stringify(icoJobs.map((j) => ({ file: String(j.s), svg: j.svg })))})`, true,
+  const icoJobs = ICO_SIZES.map((s) => ({ file: String(s), svg: svgCompose(s, 0.8, 'rounded') }));
+  const icoRenders = await win.webContents.executeJavaScript(
+    `render(${JSON.stringify(icoJobs)}, true)`, true,
   );
-  const blobs = ICO_SIZES.map((s) => Buffer.from(icoPngs[String(s)].split(',')[1], 'base64'));
+  const blobs = ICO_SIZES.map((s) => {
+    const { dataUrl, rgba } = icoRenders[String(s)];
+    return s <= 128 ? rgbaToDib(rgba, s, s) : Buffer.from(dataUrl.split(',')[1], 'base64');
+  });
   const header = Buffer.alloc(6);
   header.writeUInt16LE(0, 0); header.writeUInt16LE(1, 2); header.writeUInt16LE(ICO_SIZES.length, 4);
   let offset = 6 + 16 * ICO_SIZES.length;
