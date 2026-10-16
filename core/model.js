@@ -29,6 +29,10 @@
     ['22:30', '23:20'], ['23:30', '00:20'], ['00:30', '01:20'], ['01:30', '02:20']
   ];
 
+  // 安卓端出厂默认：格子内字体 10px（小屏信息密度），其余平台 12
+  const IS_ANDROID =
+    typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent || "");
+
   const DEFAULT_SETTINGS = {
     termStart: null,        // 学期开始日期（默认取本周一）
     totalWeeks: 20,
@@ -48,7 +52,7 @@
     colBgAlpha: 100,        // 衬底不透明度 10-100
     sundayFirst: false,
     sameLen: false,         // 每节课时长相同
-    courseTextSize: 12,     // 格子内课程文字大小 9-16
+    courseTextSize: IS_ANDROID ? 10 : 12, // 格子内课程文字大小 9-16（安卓出厂 10）
     cornerRadius: 7,        // 格子圆角 0-16
     courseGap: 1.5,         // 课程格子边距（列宽百分比 0-10）：课程与列衬底、课程之间的统一间距
     textHCenter: false,     // 格子文字水平居中
@@ -91,7 +95,11 @@
     s.showColBg = s.showColBg !== false && s.showColBg !== 'false';
     s.colBgAlpha = clamp(Number(s.colBgAlpha) || 100, 10, 100);
     s.sundayFirst = !!s.sundayFirst;
-    s.courseTextSize = clamp(Number(s.courseTextSize) || 12, 9, 16);
+    s.courseTextSize = clamp(
+      Number(s.courseTextSize) || DEFAULT_SETTINGS.courseTextSize,
+      9,
+      16,
+    );
     s.cornerRadius = clamp(Number(s.cornerRadius) || 7, 0, 16);
     // 0 是合法值（无间距），不能走 `|| 默认` 的短路写法
     const cg = Number(s.courseGap);

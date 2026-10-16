@@ -466,8 +466,6 @@ function buildCourseBlock(e, isCurrent, axis, gap) {
   if (sl.isOdd === 2) html += `<div class="course-tag">双周</div>`;
   if (sl.customTime)
     html += `<div class="course-tag">${sl.customTime.start}~${sl.customTime.end}</div>`;
-  if (s.showTimeInGrid && !sl.customTime)
-    html += `<div class="course-sec">${sl.start}-${sl.start + sl.step - 1}节</div>`;
   html += `<div class="course-name">${escapeHtml(c.name)}</div>`;
   if (s.showTeachInGrid && sl.teach)
     html += `<div class="course-teach">${escapeHtml(sl.teach)}</div>`;
@@ -1424,7 +1422,6 @@ function openSettings() {
   $("courseGapVal").textContent = s.courseGap + "%";
   $("s_textHCenter").checked = s.textHCenter;
   $("s_textVCenter").checked = s.textVCenter;
-  $("s_showTimeInGrid").checked = s.showTimeInGrid;
   $("s_showTeachInGrid").checked = s.showTeachInGrid;
   // 预留接口：s_showNoteInGrid 已挂 UI，渲染逻辑后续版本接入（网格辅助线项已移除）
   $("s_showNoteInGrid").checked = s.showNoteInGrid;
@@ -1489,7 +1486,6 @@ function collectSettings() {
   s.courseGap = Number($("s_courseGap").value);
   s.textHCenter = $("s_textHCenter").checked;
   s.textVCenter = $("s_textVCenter").checked;
-  s.showTimeInGrid = $("s_showTimeInGrid").checked;
   s.showTeachInGrid = $("s_showTeachInGrid").checked;
   s.showNoteInGrid = $("s_showNoteInGrid").checked;
   s.sameLen = $("s_sameLen").checked;
@@ -1958,9 +1954,9 @@ function bindEvents() {
             return;
           }
           renderInto(gridB, target);
-          // 目标页摆到移动方向一侧：看下周（左滑）→ B 在 A 右侧（flex 自然排）；
-          // 看上周（右滑）→ B 自身左移一屏（负 margin 会与 A 重叠，用 transform）
-          cellB.style.transform = dx < 0 ? "" : "translateX(-100%)";
+          // 目标页摆到移动方向一侧：看下周（左滑）→ B 在 A 右侧（flex 自然排 w..2w）；
+          // 看上周（右滑）→ B 左移两屏到 -w..0（B 自然位在 A 后，移 100% 只会与 A 重叠）
+          cellB.style.transform = dx < 0 ? "" : "translateX(-200%)";
           swiping = true;
         }
         track.style.transform = `translateX(${dx}px)`;

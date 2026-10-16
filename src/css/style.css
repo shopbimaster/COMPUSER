@@ -454,10 +454,6 @@ select option {
 .course-block.txt-vcenter {
   justify-content: center;
 }
-.course-block .course-sec {
-  font-size: 0.82em;
-  opacity: 0.85;
-}
 
 /* 空状态 */
 .empty-tip {
@@ -670,12 +666,18 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 /* 课表卡片（周数面板内） */
+/* 三点面板的课表选择：横排滑动卡片（课表多时横向滑，面板高度不变） */
 .sch-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  display: flex;
   gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scroll-snap-type: x proximity;
 }
 .sch-card {
+  flex: 0 0 auto;
+  min-width: 108px;
+  scroll-snap-align: start;
   aspect-ratio: 1 / 0.82;
   border-radius: 12px;
   background: var(--input-bg);
@@ -1575,29 +1577,18 @@ input[type="radio"] {
   padding: 9px 18px;
 }
 
-/* 课表列表：横向滑动卡片（课表多时不再把弹窗撑高） */
-#scheduleList {
-  display: flex;
-  flex-direction: row;
-  gap: 8px;
-  overflow-x: auto;
-  padding: 2px 2px 8px;
-  scroll-snap-type: x proximity;
-}
+/* 课表管理列表（新建/管理弹窗内）：纵向行 */
 .sch-row {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  flex: 0 0 240px;
-  scroll-snap-align: start;
   padding: 9px 12px;
   border-radius: 14px;
+  margin-bottom: 8px;
   background: var(--input-bg);
 }
 .sch-row .sch-name {
-  order: -1;
-  flex: 1 1 100%;
+  flex: 1;
   min-width: 0;
   font-size: 14px;
   padding: 4px 8px;
@@ -1946,5 +1937,14 @@ textarea {
   .modal-body .time-table {
     grid-template-columns: 1fr;
     gap: 2px 0;
+    max-width: 72%; /* 时间框缩窄（约原来一半），右侧不再贴边 */
+  }
+  /* 勾选类设置行：选择框与文字同一行、靠右（不参与换行布局） */
+  .modal-body .set-row:has(input[type="checkbox"]) {
+    flex-wrap: nowrap;
+  }
+  .modal-body .set-row:has(input[type="checkbox"]) .sr-ctrl {
+    flex: 0 0 auto;
+    justify-content: flex-end;
   }
 }
