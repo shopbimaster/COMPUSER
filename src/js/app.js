@@ -362,16 +362,17 @@ function entryStartMin(e) {
 }
 
 // ---------- 时间轴布局 ----------
-// 行网格保持均匀分节（每节固定 itemHeight 高、节间 2×边距），不随节时长改变间隔；
+// 行网格保持均匀分节（每节固定 itemHeight 高、节间 1×边距），不随节时长改变间隔；
+// 课程块上下不加内缩：相邻课程块的间隙 = 块与列衬底的间距 = 1×边距（1:1）。
 // 自定义时间块不改分节：其起止时刻在各节的范围内线性插值定位（节内按时长比例、
-// 节间跨 2g 空隙过渡），从而无缝嵌入均匀网格
+// 节间跨 g 空隙过渡），从而无缝嵌入均匀网格
 function buildTimeAxis(s, gapPx) {
   const rows = [];
   for (let i = 0; i < s.classNum; i++) {
     const st = toMin(s.times[i].start);
     let en = toMin(s.times[i].end);
     if (en <= st) en = st + 1; // 容错：起止颠倒按 1 分钟
-    const y0 = i * (s.itemHeight + 2 * gapPx) + gapPx;
+    const y0 = i * (s.itemHeight + gapPx) + gapPx;
     rows.push({ st, en, y0, y1: y0 + s.itemHeight });
   }
   const t2y = (t) => {
@@ -389,7 +390,7 @@ function buildTimeAxis(s, gapPx) {
     }
     return last.y1;
   };
-  return { rows, totalH: s.classNum * s.itemHeight + 2 * s.classNum * gapPx, t2y };
+  return { rows, totalH: s.classNum * s.itemHeight + s.classNum * gapPx, t2y };
 }
 
 function buildCourseBlock(e, isCurrent, axis) {
@@ -399,7 +400,7 @@ function buildCourseBlock(e, isCurrent, axis) {
   el.className = "course-block" + (isCurrent ? "" : " other-week");
 
   // 起止时刻 → 时间轴纵坐标：自定义时间块按节内线性插值定位（分节间隔不变），
-  // 普通课即所在节行边界；上下各内缩一个边距与左右一致
+  // 普通课即所在节行边界；块间垂直间隙与左右内缩同为 1×边距（1:1），块贴行槽
   const last = axis.rows.length - 1;
   const bs = sl.customTime
     ? toMin(sl.customTime.start)
@@ -407,8 +408,8 @@ function buildCourseBlock(e, isCurrent, axis) {
   const be = sl.customTime
     ? toMin(sl.customTime.end)
     : axis.rows[Math.min(sl.start + sl.step - 1, last + 1) - 1].en;
-  const top = axis.t2y(bs) + gapPx;
-  const height = Math.max(14, axis.t2y(be) - axis.t2y(bs) - 2 * gapPx);
+  const top = axis.t2y(bs);
+  const height = Math.max(14, axis.t2y(be) - axis.t2y(bs));
   el.style.top = top + "px";
   el.style.height = height + "px";
   // 格子相对衬底左右内缩 = 课程格子边距（衬底整列不变，格子变小）
@@ -1388,9 +1389,8 @@ function openSettings() {
   $("s_textVCenter").checked = s.textVCenter;
   $("s_showTimeInGrid").checked = s.showTimeInGrid;
   $("s_showTeachInGrid").checked = s.showTeachInGrid;
-  // 预留接口：s_showNoteInGrid / s_gridLines 已挂 UI，渲染逻辑后续版本接入
+  // 预留接口：s_showNoteInGrid 已挂 UI，渲染逻辑后续版本接入（网格辅助线项已移除）
   $("s_showNoteInGrid").checked = s.showNoteInGrid;
-  $("s_gridLines").checked = s.gridLines;
   $("s_sameLen").checked = s.sameLen;
   $("s_lessonLen").disabled = !s.sameLen;
   $("btnApplyLen").disabled = !s.sameLen;
@@ -1455,7 +1455,6 @@ function collectSettings() {
   s.showTimeInGrid = $("s_showTimeInGrid").checked;
   s.showTeachInGrid = $("s_showTeachInGrid").checked;
   s.showNoteInGrid = $("s_showNoteInGrid").checked;
-  s.gridLines = $("s_gridLines").checked;
   s.sameLen = $("s_sameLen").checked;
   s.times = cur.times.map((t) => ({ ...t }));
   document.querySelectorAll("#timeTable input[data-ti]").forEach((inp) => {

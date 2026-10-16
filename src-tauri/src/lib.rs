@@ -38,13 +38,16 @@ fn set_status_bar_icons(app: tauri::AppHandle, light: bool) {
     {
         let r = app.run_on_main_thread(move || {
             use jni::objects::{JObject, JValue};
-            // ndk-context 0.1：context()/vm() 返回 *mut c_void（无 Option 包装）
-            let ctx = ndk_context::android_context().context();
-            if ctx.is_null() {
+            // ndk-context 0.1：vm()/context() 返回 *mut c_void（无 Option 包装）。
+            // 二者必须分别取用——此前误把 context 指针当 JavaVM 用（from_raw 解引用
+            // 假 VM 指针）→ SIGSEGV，表现为应用打开约一秒后闪退。
+            let ac = ndk_context::android_context();
+            let (vm_ptr, ctx_ptr) = (ac.vm(), ac.context());
+            if vm_ptr.is_null() || ctx_ptr.is_null() {
                 return;
             }
             let vm = unsafe {
-                match jni::JavaVM::from_raw(ctx.cast()) {
+                match jni::JavaVM::from_raw(vm_ptr.cast()) {
                     Ok(v) => v,
                     Err(_) => return,
                 }
@@ -53,11 +56,12 @@ fn set_status_bar_icons(app: tauri::AppHandle, light: bool) {
                 Ok(e) => e,
                 Err(_) => return,
             };
-            let activity = unsafe { JObject::from_raw(ctx.cast()) };
+            let activity = unsafe { JObject::from_raw(ctx_ptr.cast()) };
             let Ok(window) = env
                 .call_method(&activity, "getWindow", "()Landroid/view/Window;", &[])
                 .and_then(|v| v.l())
             else {
+                let _ = env.exception_clear(); // 清挂起异常，避免污染后续 JNI
                 return;
             };
             // WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS = 0x08
@@ -65,18 +69,24 @@ fn set_status_bar_icons(app: tauri::AppHandle, light: bool) {
                 .call_method(&window, "getInsetsController", "()Landroid/view/WindowInsetsController;", &[])
                 .and_then(|v| v.l())
             else {
+                let _ = env.exception_clear();
                 return;
             };
             if controller.is_null() {
                 return;
             }
             let appearance: i32 = if light { 0x08 } else { 0 };
-            let _ = env.call_method(
-                &controller,
-                "setSystemBarsAppearance",
-                "(II)V",
-                &[JValue::Int(appearance), JValue::Int(0x08)],
-            );
+            if env
+                .call_method(
+                    &controller,
+                    "setSystemBarsAppearance",
+                    "(II)V",
+                    &[JValue::Int(appearance), JValue::Int(0x08)],
+                )
+                .is_err()
+            {
+                let _ = env.exception_clear();
+            }
         });
         if let Err(e) = r {
             eprintln!("set_status_bar_icons: {e}");

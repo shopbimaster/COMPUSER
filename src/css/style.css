@@ -1864,9 +1864,9 @@ textarea {
     width: 19px;
     height: 19px;
   }
-  /* 月份/节次轴紧贴左边框 */
+  /* 月份/节次轴完全贴左边框，右侧留最小缝 */
   .schedule-wrap {
-    padding: 6px 8px 16px 2px;
+    padding: 4px 4px 16px 0;
   }
   .time-col .sec {
     font-size: 9px;
