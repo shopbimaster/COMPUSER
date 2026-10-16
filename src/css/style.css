@@ -1864,19 +1864,14 @@ textarea {
     width: 19px;
     height: 19px;
   }
-  /* 月份/节次轴完全贴左边框（文字贴列两侧、列缝收窄），右侧留最小缝 */
+  /* 节次轴列整体抵到左边界、课表列抵到节次列（列缝 2px），列内文字保持居中 */
   .schedule-wrap {
     padding: 4px 4px 16px 0;
   }
   .grid {
     gap: 0 2px;
   }
-  .grid-corner {
-    align-items: flex-start;
-  }
   .time-col .sec {
-    align-items: flex-start;
-    text-align: left;
     font-size: 9px;
     line-height: 1.3;
   }

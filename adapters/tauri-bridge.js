@@ -56,7 +56,8 @@
         await invoke('write_file', { path, text: String(text) });
         return path;
       },
-      // 接收：选择文件并读文本；返回 {name,text} | {name,error} | null（取消）
+      // 接收：选择文件并读文本；返回 {name,text} | {name,error,detail} | null（取消）
+      // detail 为逐步诊断信息（真机排障用）
       receive: async () => {
         if (ports.platform === 'android') {
           // Android 返回 content:// URI（std::fs 读不了）：主路径 read_content_file
@@ -65,22 +66,38 @@
           let picked = null;
           try {
             picked = await invoke('plugin:dialog|open', { options: { multiple: false } });
-          } catch (e) { return null; }
-          const uri = Array.isArray(picked) ? picked[0] : (picked && picked.files ? picked.files[0] : picked);
-          if (!uri) return null;
-          const u = decodeURIComponent(String(uri));
-          let name = baseName(u.split('?')[0]);
-          let text;
+          } catch (e) {
+            return { name: '', error: true, detail: '选择器调用失败: ' + ((e && e.message) || e) };
+          }
+          // 归一化返回结构：字符串 / 数组 / {files:[...]}
+          const uri = Array.isArray(picked)
+            ? picked[0]
+            : picked && typeof picked === 'object' && picked.files
+              ? picked.files[0]
+              : picked;
+          if (picked == null || uri == null) return null; // 用户取消，静默
+          if (typeof uri !== 'string') {
+            // 结构异常：带出实际结构供诊断
+            let shape = '';
+            try { shape = JSON.stringify(picked).slice(0, 200); } catch (_) { shape = String(picked); }
+            return { name: '', error: true, detail: '选择器返回异常结构: ' + shape };
+          }
+          const u = decodeURIComponent(uri);
+          let name = baseName(u.split('?')[0]) || 'import';
+          let text = null;
+          const errs = [];
           try {
-            text = await invoke('read_content_file', { uri: String(uri) });
+            text = await invoke('read_content_file', { uri });
           } catch (e1) {
+            errs.push('原生读取: ' + ((e1 && e1.message) || e1));
             try {
               const resp = await fetch(uri);
               text = await resp.text();
             } catch (e2) {
-              return { name, error: true };
+              errs.push('fetch 读取: ' + ((e2 && e2.message) || e2));
             }
           }
+          if (text == null) return { name, error: true, detail: errs.join('；') };
           // CSV 路由依赖扩展名：URI 提取不到扩展名时按内容补全
           if (!/\.[a-z0-9]+$/i.test(name)) {
             if (/^\uFEFF?\s*BEGIN:VCALENDAR/i.test(text)) name = 'import.ics';
@@ -98,7 +115,7 @@
         try {
           return { name: baseName(path), text: await invoke('read_text_file', { path }) };
         } catch (e) {
-          return { name: baseName(path), error: true };
+          return { name: baseName(path), error: true, detail: '读取文件失败: ' + ((e && e.message) || e) };
         }
       }
     },

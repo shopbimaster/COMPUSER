@@ -1739,7 +1739,8 @@ async function doImportAction(act) {
   const r = await Ports.share.receive();
   if (!r) return;
   if (r.error) {
-    showToast("导入失败：无法读取文件");
+    // detail 为逐步诊断信息（选择器/原生读取/fetch 各环节的具体错误）
+    showToast("导入失败：" + (r.detail || "无法读取文件"), 8000);
     return;
   }
   await handleImportText(r.text, r.name);
