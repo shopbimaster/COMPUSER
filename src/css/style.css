@@ -375,7 +375,8 @@ select option {
 .day-col {
   grid-row: 2;
   position: relative;
-  border-radius: 10px;
+  /* 衬底圆角与课程格子圆角动态一致（--col-radius 由 render 按 cornerRadius 注入） */
+  border-radius: var(--col-radius, 10px);
   /* 高度由 JS 按一日节数网格设置（衬底长度与一日课程数匹配），不再拉满整列 */
   /* 日列衬底（v1.1 风格）：整列铺卡片色，课程格子按「课程格子边距」内缩，
      列间缝隙露出渐变底形成分隔；
@@ -418,8 +419,9 @@ select option {
   flex-shrink: 0;
   max-width: 100%;
 }
+/* 格子内各文字行用 em 相对容器字号（随「格子内字体大小」设置缩放，默认 12px 时同旧 px 值） */
 .course-block .course-tag {
-  font-size: 9.5px;
+  font-size: 0.79em;
   background: rgba(255, 255, 255, 0.32);
   color: inherit;
   border-radius: 4px;
@@ -429,14 +431,14 @@ select option {
   font-weight: 600;
 }
 .course-block .course-name {
-  font-size: 12.5px;
+  font-size: 1.04em;
   font-weight: 700;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 .course-block .course-room,
 .course-block .course-teach {
-  font-size: 10.5px;
+  font-size: 0.875em;
   opacity: 0.95;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -1573,17 +1575,29 @@ input[type="radio"] {
   padding: 9px 18px;
 }
 
+/* 课表列表：横向滑动卡片（课表多时不再把弹窗撑高） */
+#scheduleList {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 8px;
+  scroll-snap-type: x proximity;
+}
 .sch-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+  flex: 0 0 240px;
+  scroll-snap-align: start;
   padding: 9px 12px;
   border-radius: 14px;
-  margin-bottom: 8px;
   background: var(--input-bg);
 }
 .sch-row .sch-name {
-  flex: 1;
+  order: -1;
+  flex: 1 1 100%;
   min-width: 0;
   font-size: 14px;
   padding: 4px 8px;
@@ -1909,5 +1923,28 @@ textarea {
   }
   .day-header.is-today .day-date {
     padding: 0 5px;
+  }
+  /* 设置弹窗（手机）：放不下的行允许控件换到下一行，文本不逐字断行；
+     上课时间表改单列，时间框占满整行 */
+  .modal-body .set-row {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .modal-body .set-row .sr-label {
+    width: auto;
+  }
+  .modal-body .set-row .sr-ctrl {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+  }
+  .modal-body .sr-label,
+  .modal-body .sr-val,
+  .modal-body .switch-label,
+  .modal-body .link-btn {
+    white-space: nowrap;
+  }
+  .modal-body .time-table {
+    grid-template-columns: 1fr;
+    gap: 2px 0;
   }
 }

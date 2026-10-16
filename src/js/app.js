@@ -286,6 +286,8 @@ function renderInto(gridEl, week, opts = {}) {
   );
   gridEl.style.setProperty("--header-fs", s.headerTextSize + "px");
   gridEl.style.setProperty("--ow-alpha", s.otherWeekAlpha / 100);
+  // 列衬底圆角与课程格子圆角动态一致
+  gridEl.style.setProperty("--col-radius", s.cornerRadius + "px");
 
   // 课程格子边距 = 列宽 × 设置%（0-10，normalize 已限界）。
   // 列宽必须在清空内容前从上一帧实测（清空后滚动条消失、clientWidth 会虚大）；
@@ -392,17 +394,18 @@ function entryStartMin(e) {
 }
 
 // ---------- 时间轴布局 ----------
-// 行网格保持均匀分节（每节固定 itemHeight 高、节间 1×边距），不随节时长改变间隔；
-// 课程块上下不加内缩：相邻课程块的间隙 = 块与列衬底的间距 = 1×边距（1:1）。
-// 自定义时间块不改分节：其起止时刻在各节的范围内线性插值定位（节内按时长比例、
-// 节间跨 g 空隙过渡），从而无缝嵌入均匀网格
+// 行网格保持均匀分节（每节固定 itemHeight 高），不随节时长改变间隔；
+// 垂直节间距 = 课程间间距 = 课程与列衬底间距 + 2px（水平内缩仍为衬底间距）；
+// 课程块上下不加内缩贴行槽。自定义时间块不改分节：其起止时刻在各节的范围内
+// 线性插值定位（节内按时长比例、节间跨空隙过渡），从而无缝嵌入均匀网格
 function buildTimeAxis(s, gapPx) {
   const rows = [];
+  const vGap = gapPx + 2; // 课程块之间的垂直间隙（衬底间距 + 2px）
   for (let i = 0; i < s.classNum; i++) {
     const st = toMin(s.times[i].start);
     let en = toMin(s.times[i].end);
     if (en <= st) en = st + 1; // 容错：起止颠倒按 1 分钟
-    const y0 = i * (s.itemHeight + gapPx) + gapPx;
+    const y0 = i * (s.itemHeight + vGap) + gapPx;
     rows.push({ st, en, y0, y1: y0 + s.itemHeight });
   }
   const t2y = (t) => {
@@ -420,7 +423,11 @@ function buildTimeAxis(s, gapPx) {
     }
     return last.y1;
   };
-  return { rows, totalH: s.classNum * s.itemHeight + s.classNum * gapPx, t2y };
+  return {
+    rows,
+    totalH: s.classNum * s.itemHeight + (s.classNum - 1) * vGap + 2 * gapPx,
+    t2y,
+  };
 }
 
 function buildCourseBlock(e, isCurrent, axis, gap) {
@@ -1951,9 +1958,9 @@ function bindEvents() {
             return;
           }
           renderInto(gridB, target);
-          // 目标页摆到移动方向一侧：看下周（左滑）→ B 在 A 右侧；
-          // 看上周（右滑）→ B 负 margin 挪到 A 左侧（A 恒占视口 0..w）
-          cellB.style.marginLeft = dx < 0 ? "" : "-100%";
+          // 目标页摆到移动方向一侧：看下周（左滑）→ B 在 A 右侧（flex 自然排）；
+          // 看上周（右滑）→ B 自身左移一屏（负 margin 会与 A 重叠，用 transform）
+          cellB.style.transform = dx < 0 ? "" : "translateX(-100%)";
           swiping = true;
         }
         track.style.transform = `translateX(${dx}px)`;
@@ -1980,7 +1987,7 @@ function bindEvents() {
             updateWeekUI();
             render();
           }
-          cellB.style.marginLeft = "";
+          cellB.style.transform = "";
           track.classList.remove("sliding");
           track.style.transform = "translateX(0)";
         }, 240);
