@@ -282,6 +282,8 @@ function render(reflowed) {
           Math.max(1, visibleDays.length),
       );
   gapPx = Math.round(colW * (s.courseGap / 100));
+  // 节次列左右余量 = 衬底间距（CSS max-content 列宽 + var(--gap) padding）
+  grid.style.setProperty("--gap", gapPx + "px");
 
   // 时间轴：均匀分节网格 + 节内线性插值（自定义时间块按真实时刻无缝嵌入）
   const axis = buildTimeAxis(s, gapPx);
@@ -290,7 +292,8 @@ function render(reflowed) {
   const corner = document.createElement("div");
   corner.className = "grid-corner";
   const weekMonday = dayDate(viewWeek, 1);
-  corner.innerHTML = `<span class="month">${weekMonday.getMonth() + 1}<small>月</small></span>`;
+  // 月份角格与周表头同构：数字在上、「月」字在下（与周几/日期的上下结构一致）
+  corner.innerHTML = `<span class="month">${weekMonday.getMonth() + 1}</span><span class="month-sub">月</span>`;
   grid.appendChild(corner);
 
   for (const d of visibleDays) {
@@ -304,6 +307,11 @@ function render(reflowed) {
 
   const timeCol = document.createElement("div");
   timeCol.className = "time-col";
+  // max-content 列宽不计算 absolute 子元素：用隐形 sizer 把列撑到时间文字宽度
+  const sizer = document.createElement("div");
+  sizer.className = "col-sizer";
+  sizer.textContent = "08:00";
+  timeCol.appendChild(sizer);
   for (let i = 1; i <= s.classNum; i++) {
     const r = axis.rows[i - 1];
     const sec = document.createElement("div");

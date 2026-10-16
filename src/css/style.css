@@ -261,7 +261,8 @@ select option {
 
 .grid {
   display: grid;
-  grid-template-columns: 40px repeat(var(--day-count, 7), 1fr);
+  /* 节次列宽度由内容决定（文字宽 + 左右各 1×边距），与列衬底间距一致 */
+  grid-template-columns: max-content repeat(var(--day-count, 7), 1fr);
   grid-template-rows: 40px 1fr;
   gap: 0 4px;
   min-height: 100%;
@@ -275,18 +276,18 @@ select option {
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  padding-top: 2px;
+  padding: 2px var(--gap, 4px) 0;
 }
+/* 月份角格与周表头同构：数字在上（同 day-name）、「月」字在下（同 day-date） */
 .grid-corner .month {
-  font-size: 15px;
-  font-weight: 800;
+  font-size: var(--header-fs, 13px);
+  font-weight: 600;
   color: var(--text);
 }
-.grid-corner .month small {
-  font-size: 9px;
-  font-weight: 400;
+.grid-corner .month-sub {
+  font-size: 11px;
   color: var(--text-2);
-  margin-left: 1px;
+  margin-top: 1px;
 }
 
 .day-header {
@@ -324,6 +325,16 @@ select option {
   grid-row: 2;
   grid-column: 1;
   position: relative;
+  /* 左右余量 = 衬底间距（--gap 由 render 按 gapPx 注入），.sec 的 absolute 在 padding box 内 */
+  padding: 2px var(--gap, 4px) 0;
+}
+/* 隐形测量元素：max-content 列宽不计算 absolute 子元素，用它把列撑到时间文字宽度 */
+.time-col .col-sizer {
+  visibility: hidden;
+  height: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 10px;
 }
 .time-col .sec {
   position: absolute;

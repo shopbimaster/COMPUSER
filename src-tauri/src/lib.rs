@@ -159,38 +159,45 @@ fn read_content_file(uri: String) -> Result<String, String> {
         let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
         let activity = unsafe { JObject::from_raw(ctx_ptr.cast()) };
 
-        // JNI 调用辅助：失败即清挂起异常并报错（挂起异常不清理会污染后续调用）
+        // JNI 调用辅助：失败即清挂起异常并带步骤名报错（真机排障定位到具体环节）
         macro_rules! j {
-            ($res:expr) => {
+            ($step:expr, $res:expr) => {
                 match $res {
                     Ok(v) => v,
-                    Err(_) => {
+                    Err(e) => {
                         let _ = env.exception_clear();
-                        return Err("JNI 调用失败".into());
+                        return Err(format!("JNI[{}]: {}", $step, e));
                     }
                 }
             };
         }
 
-        let resolver = j!(env
-            .call_method(&activity, "getContentResolver", "()Landroid/content/ContentResolver;", &[])
-            .and_then(|v| v.l()));
-        let jstr = j!(env.new_string(&uri));
-        let juri = j!(env.new_object(
-            "android/net/Uri",
-            "(Ljava/lang/String;)V",
-            &[JValue::Object(&jstr)]
-        ));
-        let stream = j!(env
-            .call_method(
+        let resolver = j!(
+            "getContentResolver",
+            env.call_method(&activity, "getContentResolver", "()Landroid/content/ContentResolver;", &[])
+                .and_then(|v| v.l())
+        );
+        let jstr = j!("new_string", env.new_string(&uri));
+        let juri = j!(
+            "Uri.parse",
+            env.new_object(
+                "android/net/Uri",
+                "(Ljava/lang/String;)V",
+                &[JValue::Object(&jstr)]
+            )
+        );
+        let stream = j!(
+            "openInputStream",
+            env.call_method(
                 &resolver,
                 "openInputStream",
                 "(Landroid/net/Uri;)Ljava/io/InputStream;",
                 &[JValue::Object(&juri)]
             )
-            .and_then(|v| v.l()));
+            .and_then(|v| v.l())
+        );
         if stream.is_null() {
-            return Err("无法读取所选文件".into());
+            return Err("无法读取所选文件（provider 返回空流）".into());
         }
 
         // 优先 readAllBytes（API 33+），不可用回退循环 read
@@ -200,23 +207,26 @@ fn read_content_file(uri: String) -> Result<String, String> {
         {
             Ok(arr) => {
                 let arr: JByteArray = arr.into();
-                j!(env.convert_byte_array(&arr))
+                j!("readAllBytes 转换", env.convert_byte_array(&arr))
             }
-            Err(_) => {
+            Err(e) => {
                 let _ = env.exception_clear();
                 let mut out: Vec<u8> = Vec::new();
-                let buf = j!(env.new_byte_array(65536));
+                let buf = j!("new buf", env.new_byte_array(65536));
                 loop {
-                    let n = j!(env
-                        .call_method(&stream, "read", "([B)I", &[JValue::Object(&buf)])
-                        .and_then(|v| v.i()));
+                    let n = j!(
+                        "read",
+                        env.call_method(&stream, "read", "([B)I", &[JValue::Object(&buf)])
+                            .and_then(|v| v.i())
+                    );
                     if n <= 0 {
                         break;
                     }
                     let n = n as usize;
-                    let seg = j!(env.convert_byte_array(&buf));
+                    let seg = j!("read 转换", env.convert_byte_array(&buf));
                     out.extend_from_slice(&seg[..n]);
                 }
+                let _ = e;
                 out
             }
         };
