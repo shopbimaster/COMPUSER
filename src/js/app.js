@@ -250,6 +250,25 @@ function dayOrder() {
 }
 
 function render(reflowed) {
+  renderInto($("grid"), viewWeek, { main: true });
+  // 内容撑出滚动条后列宽会收缩，首帧推导的 gap 可能偏大 1px：
+  // 首帧渲染完成后实测列宽复核一次，仅重排一帧（reflowed 防循环）
+  if (!reflowed) {
+    requestAnimationFrame(() => {
+      const col0 = $("grid").querySelector(".day-col");
+      if (!col0) return;
+      const g2 = Math.round(
+        col0.getBoundingClientRect().width *
+          (currentSettings().courseGap / 100),
+      );
+      if (g2 !== gapPx) render(true);
+    });
+  }
+}
+
+// 渲染任意周到任意网格容器（主 grid 或滑动轨道的目标页 gridB）
+function renderInto(gridEl, week, opts = {}) {
+  const main = !!opts.main;
   const s = currentSettings();
   const todayStr = fmtDate(new Date());
   const days = dayOrder();
@@ -258,51 +277,51 @@ function render(reflowed) {
     (d) => d <= 5 || (d === 6 && s.showSaturday) || (d === 7 && s.showSunday),
   );
 
-  const grid = $("grid");
-  grid.style.setProperty("--day-count", visibleDays.length);
+  gridEl.style.setProperty("--day-count", visibleDays.length);
   // 列衬底：课表为空时不铺（避免空表满屏白色列底）
   const hasCourses = currentSchedule().courses.length > 0;
-  grid.style.setProperty(
+  gridEl.style.setProperty(
     "--col-bg-a",
     hasCourses && s.showColBg ? s.colBgAlpha / 100 : 0,
   );
-  grid.style.setProperty("--header-fs", s.headerTextSize + "px");
-  grid.style.setProperty("--ow-alpha", s.otherWeekAlpha / 100);
+  gridEl.style.setProperty("--header-fs", s.headerTextSize + "px");
+  gridEl.style.setProperty("--ow-alpha", s.otherWeekAlpha / 100);
 
   // 课程格子边距 = 列宽 × 设置%（0-10，normalize 已限界）。
   // 列宽必须在清空内容前从上一帧实测（清空后滚动条消失、clientWidth 会虚大）；
   // 首帧无旧列可测时按布局公式估算：40px 时间列 + 每列列缝（读 computed，窄屏 2px/桌面 4px）
-  const prevCol = grid.querySelector(".day-col");
-  const colGapPx = parseFloat(getComputedStyle(grid).columnGap) || 4;
+  const prevCol = gridEl.querySelector(".day-col");
+  const colGapPx = parseFloat(getComputedStyle(gridEl).columnGap) || 4;
   const colW = prevCol
     ? prevCol.getBoundingClientRect().width
     : Math.max(
         0,
-        (grid.clientWidth - 40 - visibleDays.length * colGapPx) /
+        (gridEl.clientWidth - 40 - visibleDays.length * colGapPx) /
           Math.max(1, visibleDays.length),
       );
-  gapPx = Math.round(colW * (s.courseGap / 100));
+  const g = Math.round(colW * (s.courseGap / 100));
+  if (main) gapPx = g; // 全局 gapPx 供双击命中等旧引用；目标页渲染用局部 g
   // 节次列左右余量 = 衬底间距（CSS max-content 列宽 + var(--gap) padding）
-  grid.style.setProperty("--gap", gapPx + "px");
+  gridEl.style.setProperty("--gap", g + "px");
 
   // 时间轴：均匀分节网格 + 节内线性插值（自定义时间块按真实时刻无缝嵌入）
-  const axis = buildTimeAxis(s, gapPx);
-  grid.innerHTML = "";
+  const axis = buildTimeAxis(s, g);
+  gridEl.innerHTML = "";
 
   const corner = document.createElement("div");
   corner.className = "grid-corner";
-  const weekMonday = dayDate(viewWeek, 1);
+  const weekMonday = dayDate(week, 1);
   // 月份角格与周表头同构：数字在上、「月」字在下（与周几/日期的上下结构一致）
   corner.innerHTML = `<span class="month">${weekMonday.getMonth() + 1}</span><span class="month-sub">月</span>`;
-  grid.appendChild(corner);
+  gridEl.appendChild(corner);
 
   for (const d of visibleDays) {
-    const date = dayDate(viewWeek, d);
+    const date = dayDate(week, d);
     const h = document.createElement("div");
     h.className =
       "day-header" + (fmtDate(date) === todayStr ? " is-today" : "");
     h.innerHTML = `<span class="day-name">${DAY_ABBR[d]}</span><span class="day-date">${date.getDate()}</span>`;
-    grid.appendChild(h);
+    gridEl.appendChild(h);
   }
 
   const timeCol = document.createElement("div");
@@ -321,7 +340,7 @@ function render(reflowed) {
     sec.innerHTML = `<span class="sec-no">${i}</span><span>${s.times[i - 1].start}</span><span>${s.times[i - 1].end}</span>`;
     timeCol.appendChild(sec);
   }
-  grid.appendChild(timeCol);
+  gridEl.appendChild(timeCol);
 
   for (const d of visibleDays) {
     const col = document.createElement("div");
@@ -335,42 +354,33 @@ function render(reflowed) {
       .sort((a, b) => entryStartMin(a) - entryStartMin(b));
 
     for (const e of dayEntries) {
-      const inWeek = C.slotInWeek(e.slot, viewWeek);
+      const inWeek = C.slotInWeek(e.slot, week);
       if (!inWeek && !s.showOtherWeek) continue;
-      col.appendChild(buildCourseBlock(e, inWeek, axis));
+      col.appendChild(buildCourseBlock(e, inWeek, axis, g));
     }
 
-    col.addEventListener("dblclick", (ev) => {
-      const rect = col.getBoundingClientRect();
-      const y = ev.clientY - rect.top;
-      // 命中时间轴各行（首尾各放宽一个边距容差），取包含纵坐标的一节
-      let secIdx = axis.rows.length - 1;
-      for (let i = 0; i < axis.rows.length; i++) {
-        if (y < axis.rows[i].y1 + gapPx) {
-          secIdx = i;
-          break;
+    if (main) {
+      col.addEventListener("dblclick", (ev) => {
+        const rect = col.getBoundingClientRect();
+        const y = ev.clientY - rect.top;
+        // 命中时间轴各行（首尾各放宽一个边距容差），取包含纵坐标的一节
+        let secIdx = axis.rows.length - 1;
+        for (let i = 0; i < axis.rows.length; i++) {
+          if (y < axis.rows[i].y1 + gapPx) {
+            secIdx = i;
+            break;
+          }
         }
-      }
-      openCourseModal("add", null, null, { day: d, start: secIdx + 1 });
-    });
+        openCourseModal("add", null, null, { day: d, start: secIdx + 1 });
+      });
+    }
 
-    grid.appendChild(col);
+    gridEl.appendChild(col);
   }
 
-  $("emptyTip").hidden = currentSchedule().courses.length !== 0;
-  updateWeekUI();
-
-  // 内容撑出滚动条后列宽会收缩，首帧推导的 gap 可能偏大 1px：
-  // 首帧渲染完成后实测列宽复核一次，仅重排一帧（reflowed 防循环）
-  if (!reflowed) {
-    requestAnimationFrame(() => {
-      const col0 = $("grid").querySelector(".day-col");
-      if (!col0) return;
-      const g2 = Math.round(
-        col0.getBoundingClientRect().width * (s.courseGap / 100),
-      );
-      if (g2 !== gapPx) render(true);
-    });
+  if (main) {
+    $("emptyTip").hidden = currentSchedule().courses.length !== 0;
+    updateWeekUI();
   }
 }
 
@@ -413,7 +423,7 @@ function buildTimeAxis(s, gapPx) {
   return { rows, totalH: s.classNum * s.itemHeight + s.classNum * gapPx, t2y };
 }
 
-function buildCourseBlock(e, isCurrent, axis) {
+function buildCourseBlock(e, isCurrent, axis, gap) {
   const s = currentSettings();
   const { course: c, slot: sl } = e;
   const el = document.createElement("div");
@@ -433,8 +443,8 @@ function buildCourseBlock(e, isCurrent, axis) {
   el.style.top = top + "px";
   el.style.height = height + "px";
   // 格子相对衬底左右内缩 = 课程格子边距（衬底整列不变，格子变小）
-  el.style.left = gapPx + "px";
-  el.style.right = gapPx + "px";
+  el.style.left = gap + "px";
+  el.style.right = gap + "px";
 
   const style = courseBlockStyle(c);
   el.style.background = style.bg;
@@ -1889,13 +1899,22 @@ function bindEvents() {
     setViewWeek(viewWeek + 1);
   };
 
-  // 触屏左右滑动切换周次（手机端隐藏切周箭头后的替代交互）：
-  // 横向位移 >60px 且约为纵向 2 倍、600ms 内完成，避免误伤纵向滚动与双击添加
+  // 触屏左右滑动切换周次（手机端隐藏切周箭头后的替代交互）：拖动跟手——
+  // 当前周页与目标周页并排各显示一部分（week-track 轨道），松手超阈值
+  // 滑入目标周、不足弹回；纵向滚动优先，越界周不启动
   (() => {
     const wrap = document.querySelector(".schedule-wrap");
+    const track = document.getElementById("weekTrack");
+    const cellA = document.getElementById("gridCellA");
+    const cellB = document.getElementById("gridCellB");
+    const gridB = document.getElementById("gridB");
     let sx = 0,
       sy = 0,
       st = 0;
+    let swiping = false; // 已进入横向拖拽
+    let dead = false; // 本次触摸已判定为纵向滚动/越界
+    let target = 0;
+
     wrap.addEventListener(
       "touchstart",
       (e) => {
@@ -1903,23 +1922,68 @@ function bindEvents() {
         sx = e.touches[0].clientX;
         sy = e.touches[0].clientY;
         st = Date.now();
+        swiping = false;
+        dead = false;
+        track.classList.remove("sliding");
+        track.style.transform = "translateX(0)";
       },
       { passive: true },
     );
+
+    wrap.addEventListener(
+      "touchmove",
+      (e) => {
+        if (dead || e.touches.length !== 1) return;
+        const x = e.touches[0].clientX;
+        const y = e.touches[0].clientY;
+        const dx = x - sx;
+        const dy = y - sy;
+        if (!swiping) {
+          if (Math.abs(dx) < 14) return;
+          if (Math.abs(dy) > Math.abs(dx)) {
+            dead = true;
+            return;
+          } // 纵向滚动优先
+          // 横向滑动启动：确定目标周并预渲染其页面
+          target = dx < 0 ? viewWeek + 1 : viewWeek - 1;
+          if (target < 1 || target > currentSettings().totalWeeks) {
+            dead = true;
+            return;
+          }
+          renderInto(gridB, target);
+          // 目标页摆到移动方向一侧：看下周（左滑）→ B 在 A 右侧；
+          // 看上周（右滑）→ B 负 margin 挪到 A 左侧（A 恒占视口 0..w）
+          cellB.style.marginLeft = dx < 0 ? "" : "-100%";
+          swiping = true;
+        }
+        track.style.transform = `translateX(${dx}px)`;
+      },
+      { passive: true },
+    );
+
     wrap.addEventListener(
       "touchend",
       (e) => {
-        const t = e.changedTouches[0];
-        const dx = t.clientX - sx;
-        const dy = t.clientY - sy;
-        if (
-          Date.now() - st < 600 &&
-          Math.abs(dx) > 60 &&
-          Math.abs(dy) < 50 &&
-          Math.abs(dx) > Math.abs(dy) * 2
-        ) {
-          setViewWeek(viewWeek + (dx < 0 ? 1 : -1));
-        }
+        if (!swiping) return;
+        swiping = false;
+        const dx = e.changedTouches[0].clientX - sx;
+        const w = wrap.clientWidth;
+        const dt = Math.max(1, Date.now() - st);
+        const flick = Math.abs(dx) / dt > 0.45; // 快速甩动
+        const commit = Math.abs(dx) > w * 0.25 || (flick && Math.abs(dx) > 40);
+        track.classList.add("sliding");
+        track.style.transform = `translateX(${commit ? (dx < 0 ? -w : w) : 0}px)`;
+        setTimeout(() => {
+          if (commit) {
+            // 目标周转正：主 grid 渲染目标周（此刻视口正显示其内容），再复位轨道
+            viewWeek = target;
+            updateWeekUI();
+            render();
+          }
+          cellB.style.marginLeft = "";
+          track.classList.remove("sliding");
+          track.style.transform = "translateX(0)";
+        }, 240);
       },
       { passive: true },
     );

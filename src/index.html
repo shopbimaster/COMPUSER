@@ -138,7 +138,15 @@
 
     <!-- 课程表网格 -->
     <main class="schedule-wrap" id="scheduleWrap">
-      <div class="grid" id="grid"></div>
+      <!-- 周滑动轨道：cellA=当前周，cellB=滑动目标周（拖动跟手，松手过渡/弹回） -->
+      <div class="week-track" id="weekTrack">
+        <div class="week-cell" id="gridCellA">
+          <div class="grid" id="grid"></div>
+        </div>
+        <div class="week-cell" id="gridCellB">
+          <div class="grid" id="gridB"></div>
+        </div>
+      </div>
       <div class="empty-tip" id="emptyTip" hidden>
         <div class="empty-icon">
           <svg

@@ -254,9 +254,24 @@ select option {
 /* ============ 课程表网格 ============ */
 .schedule-wrap {
   flex: 1;
-  overflow: auto;
+  overflow: hidden auto; /* 横向被周滑动轨道占用，只允许纵向滚动 */
   padding: 8px 14px 20px;
   position: relative;
+}
+
+/* ============ 周滑动轨道（手机端拖拽跟手切换周次） ============ */
+.week-track {
+  display: flex;
+  width: 100%;
+  transform: translateX(0);
+  will-change: transform;
+}
+.week-track.sliding {
+  transition: transform 0.22s ease-out;
+}
+.week-cell {
+  flex: 0 0 100%;
+  min-width: 0;
 }
 
 .grid {
