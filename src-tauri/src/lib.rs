@@ -143,6 +143,93 @@ fn write_temp_file(app: tauri::AppHandle, name: String, text: String) -> Result<
     file.to_str().map(|s| s.to_string()).ok_or_else(|| "path not utf-8".into())
 }
 
+// Android：读 content:// URI。系统文件选择器（ACTION_GET_CONTENT）返回 content URI，
+// std::fs 读不了 → JNI 走 ContentResolver.openInputStream 全量读为 UTF-8 文本。
+#[tauri::command]
+fn read_content_file(uri: String) -> Result<String, String> {
+    #[cfg(target_os = "android")]
+    {
+        use jni::objects::{JByteArray, JObject, JValue};
+        let ac = ndk_context::android_context();
+        let (vm_ptr, ctx_ptr) = (ac.vm(), ac.context());
+        if vm_ptr.is_null() || ctx_ptr.is_null() {
+            return Err("no android context".into());
+        }
+        let vm = unsafe { jni::JavaVM::from_raw(vm_ptr.cast()) }.map_err(|e| e.to_string())?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        let activity = unsafe { JObject::from_raw(ctx_ptr.cast()) };
+
+        // JNI 调用辅助：失败即清挂起异常并报错（挂起异常不清理会污染后续调用）
+        macro_rules! j {
+            ($res:expr) => {
+                match $res {
+                    Ok(v) => v,
+                    Err(_) => {
+                        let _ = env.exception_clear();
+                        return Err("JNI 调用失败".into());
+                    }
+                }
+            };
+        }
+
+        let resolver = j!(env
+            .call_method(&activity, "getContentResolver", "()Landroid/content/ContentResolver;", &[])
+            .and_then(|v| v.l()));
+        let jstr = j!(env.new_string(&uri));
+        let juri = j!(env.new_object(
+            "android/net/Uri",
+            "(Ljava/lang/String;)V",
+            &[JValue::Object(&jstr)]
+        ));
+        let stream = j!(env
+            .call_method(
+                &resolver,
+                "openInputStream",
+                "(Landroid/net/Uri;)Ljava/io/InputStream;",
+                &[JValue::Object(&juri)]
+            )
+            .and_then(|v| v.l()));
+        if stream.is_null() {
+            return Err("无法读取所选文件".into());
+        }
+
+        // 优先 readAllBytes（API 33+），不可用回退循环 read
+        let bytes: Vec<u8> = match env
+            .call_method(&stream, "readAllBytes", "()[B", &[])
+            .and_then(|v| v.l())
+        {
+            Ok(arr) => {
+                let arr: JByteArray = arr.into();
+                j!(env.convert_byte_array(&arr))
+            }
+            Err(_) => {
+                let _ = env.exception_clear();
+                let mut out: Vec<u8> = Vec::new();
+                let buf = j!(env.new_byte_array(65536));
+                loop {
+                    let n = j!(env
+                        .call_method(&stream, "read", "([B)I", &[JValue::Object(&buf)])
+                        .and_then(|v| v.i()));
+                    if n <= 0 {
+                        break;
+                    }
+                    let n = n as usize;
+                    let seg = j!(env.convert_byte_array(&buf));
+                    out.extend_from_slice(&seg[..n]);
+                }
+                out
+            }
+        };
+        let _ = env.call_method(&stream, "close", "()V", &[]);
+        String::from_utf8(bytes).map_err(|_| "文件不是 UTF-8 文本".into())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = uri;
+        Err("仅 Android 支持 content URI".into())
+    }
+}
+
 // Android 系统分享面板：tauri-plugin-share 的 IPC 层未发布（命令被注释），
 // 这里直接经 Rust 侧 ShareExt 驱动其 Kotlin 实现
 #[tauri::command]
@@ -170,6 +257,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             os_platform,
             set_status_bar_icons,
+            read_content_file,
             load_data,
             save_data,
             write_file,

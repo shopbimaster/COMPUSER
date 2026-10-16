@@ -59,8 +59,8 @@
       // 接收：选择文件并读文本；返回 {name,text} | {name,error} | null（取消）
       receive: async () => {
         if (ports.platform === 'android') {
-          // Android 返回 content:// URI 数组；std::fs 读不了 → WebView fetch 读取
-          // （AllowContentAccess 默认开启）。不传 filters：ACTION_GET_CONTENT 按
+          // Android 返回 content:// URI（std::fs 读不了）：主路径 read_content_file
+          // （ContentResolver JNI），fetch 兜底。不传 filters：ACTION_GET_CONTENT 按
           // mime 过滤会挡住微信/QQ 下载的 octet-stream 文件
           let picked = null;
           try {
@@ -68,12 +68,26 @@
           } catch (e) { return null; }
           const uri = Array.isArray(picked) ? picked[0] : (picked && picked.files ? picked.files[0] : picked);
           if (!uri) return null;
+          const u = decodeURIComponent(String(uri));
+          let name = baseName(u.split('?')[0]);
+          let text;
           try {
-            const resp = await fetch(uri);
-            return { name: baseName(decodeURIComponent(String(uri))), text: await resp.text() };
-          } catch (e) {
-            return { name: baseName(decodeURIComponent(String(uri))), error: true };
+            text = await invoke('read_content_file', { uri: String(uri) });
+          } catch (e1) {
+            try {
+              const resp = await fetch(uri);
+              text = await resp.text();
+            } catch (e2) {
+              return { name, error: true };
+            }
           }
+          // CSV 路由依赖扩展名：URI 提取不到扩展名时按内容补全
+          if (!/\.[a-z0-9]+$/i.test(name)) {
+            if (/^\uFEFF?\s*BEGIN:VCALENDAR/i.test(text)) name = 'import.ics';
+            else if (/^\s*[[{]/.test(text)) name = 'import.json';
+            else if (text.includes(',') && text.includes('\n')) name = 'import.csv';
+          }
+          return { name, text };
         }
         let path = null;
         try {

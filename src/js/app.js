@@ -30,7 +30,15 @@ const DAY_NAMES = {
   7: "周日",
 };
 // 周表头单字显示（去掉「周」字的中文数字，对齐移动端紧凑表头）
-const DAY_ABBR = { 1: "一", 2: "二", 3: "三", 4: "四", 5: "五", 6: "六", 7: "日" };
+const DAY_ABBR = {
+  1: "一",
+  2: "二",
+  3: "三",
+  4: "四",
+  5: "五",
+  6: "六",
+  7: "日",
+};
 const ODD_NAMES = ["每周", "单周", "双周"];
 let gapPx = 4; // 课程格子边距（px）：课程与列衬底、课程之间的统一间距，render 时按列宽×设置%计算
 
@@ -254,19 +262,23 @@ function render(reflowed) {
   grid.style.setProperty("--day-count", visibleDays.length);
   // 列衬底：课表为空时不铺（避免空表满屏白色列底）
   const hasCourses = currentSchedule().courses.length > 0;
-  grid.style.setProperty("--col-bg-a", hasCourses && s.showColBg ? s.colBgAlpha / 100 : 0);
+  grid.style.setProperty(
+    "--col-bg-a",
+    hasCourses && s.showColBg ? s.colBgAlpha / 100 : 0,
+  );
   grid.style.setProperty("--header-fs", s.headerTextSize + "px");
   grid.style.setProperty("--ow-alpha", s.otherWeekAlpha / 100);
 
   // 课程格子边距 = 列宽 × 设置%（0-10，normalize 已限界）。
   // 列宽必须在清空内容前从上一帧实测（清空后滚动条消失、clientWidth 会虚大）；
-  // 首帧无旧列可测时按布局公式估算：40px 时间列 + 每列间 4px 列缝（与 .grid CSS 一致）
+  // 首帧无旧列可测时按布局公式估算：40px 时间列 + 每列列缝（读 computed，窄屏 2px/桌面 4px）
   const prevCol = grid.querySelector(".day-col");
+  const colGapPx = parseFloat(getComputedStyle(grid).columnGap) || 4;
   const colW = prevCol
     ? prevCol.getBoundingClientRect().width
     : Math.max(
         0,
-        (grid.clientWidth - 40 - visibleDays.length * 4) /
+        (grid.clientWidth - 40 - visibleDays.length * colGapPx) /
           Math.max(1, visibleDays.length),
       );
   gapPx = Math.round(colW * (s.courseGap / 100));
