@@ -119,9 +119,16 @@
         }
       }
     },
-    // Android 状态栏图标颜色（浅色页面→深图标；深色页面→白图标）；其他平台为空
+    // Android 状态栏图标颜色（浅色页面→深图标；深色页面→白图标）；其他平台为空。
+    // 首选 MainActivity 注入的 JavascriptInterface（主线程可靠），
+    // 注入缺失时回退 invoke 命令（Rust 主线程 JNI）
     statusBar: {
       setLightIcons: (light) => {
+        const bridge = window.__campuserStatusBar;
+        if (bridge && bridge.setLightIcons) {
+          bridge.setLightIcons(!!light);
+          return;
+        }
         invoke('set_status_bar_icons', { light: !!light }).catch(() => {});
       }
     }

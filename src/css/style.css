@@ -448,8 +448,9 @@ select option {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+/* 下周叠加课程：保留原本颜色，仅按设置降低不透明度（不再灰度化） */
 .course-block.other-week {
-  filter: grayscale(1) opacity(var(--ow-alpha, 0.5));
+  opacity: var(--ow-alpha, 0.5);
 }
 /* 格子文字对齐开关（设置驱动） */
 .course-block.txt-hcenter {
@@ -1960,16 +1961,16 @@ textarea {
     justify-content: flex-end;
   }
   /* 「上课时间」行（含每节等长/时长/应用到全部）：标签独占一行，控件组换行内部再折行
-     （row-samelen 显式类 + :has 双保险，老 WebView 不支持 :has 时也能单起一行） */
-  .modal-body .set-row.row-samelen,
+     （row-samelen 双类写法压过 :has(checkbox) 的 nowrap 规则；:has 为老代码兼容保留） */
+  .modal-body .set-row.row-samelen.row-samelen,
   .modal-body .set-row:has(.same-len-edit) {
     flex-wrap: wrap;
   }
-  .modal-body .set-row.row-samelen .sr-label,
+  .modal-body .set-row.row-samelen.row-samelen .sr-label,
   .modal-body .set-row:has(.same-len-edit) .sr-label {
     flex: 0 0 100%;
   }
-  .modal-body .set-row.row-samelen .sr-ctrl,
+  .modal-body .set-row.row-samelen.row-samelen .sr-ctrl,
   .modal-body .set-row:has(.same-len-edit) .sr-ctrl {
     flex: 1 1 100%;
   }

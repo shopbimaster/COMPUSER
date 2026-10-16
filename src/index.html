@@ -603,13 +603,13 @@
               </div>
             </div>
             <div class="set-row">
-              <span class="sr-label">显示非本周课程</span>
+              <span class="sr-label">显示下周课程</span>
               <div class="sr-ctrl">
                 <input type="checkbox" id="s_showOtherWeek" />
               </div>
             </div>
             <div class="set-row" id="rowOtherWeekAlpha">
-              <span class="sr-label">非本周不透明度</span>
+              <span class="sr-label">下周课程不透明度</span>
               <div class="sr-ctrl">
                 <input
                   type="range"
@@ -710,6 +710,20 @@
                   max="16"
                   step="1"
                 /><span class="sr-val" id="textFsVal"></span>
+              </div>
+            </div>
+            <div class="set-row">
+              <span class="sr-label">格子文字颜色</span>
+              <div class="sr-ctrl">
+                <span class="menu-wrap">
+                  <button
+                    type="button"
+                    class="sr-select-btn"
+                    id="s_textColorBtn"
+                  ></button>
+                  <div class="dropdown dd-sm" id="s_textColorMenu" hidden></div>
+                  <input type="hidden" id="s_textColor" />
+                </span>
               </div>
             </div>
             <div class="set-row">

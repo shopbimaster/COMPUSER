@@ -355,10 +355,26 @@ function renderInto(gridEl, week, opts = {}) {
       .filter((e) => e.slot.day === d)
       .sort((a, b) => entryStartMin(a) - entryStartMin(b));
 
+    // 「显示下周课程」：本周课正常显示（实色）；下一周独有的课叠加显示
+    // （半透明 other-week，透明度由 otherWeekAlpha 驱动）。按
+    // 课程+时间段位置去重——本周已显示的位置不叠加下周的同一节课。
+    const shown = new Set();
+    const entryKey = (e) =>
+      `${e.course.id}:${e.slot.day}:${e.slot.start}:${e.slot.step}`;
     for (const e of dayEntries) {
       const inWeek = C.slotInWeek(e.slot, week);
-      if (!inWeek && !s.showOtherWeek) continue;
-      col.appendChild(buildCourseBlock(e, inWeek, axis, g));
+      if (!inWeek) continue; // 旧「非本周灰显」语义已改为叠加下周
+      col.appendChild(buildCourseBlock(e, true, axis, g));
+      shown.add(entryKey(e));
+    }
+    if (s.showOtherWeek && week + 1 <= s.totalWeeks) {
+      for (const e of dayEntries) {
+        if (!C.slotInWeek(e.slot, week + 1)) continue;
+        const key = entryKey(e);
+        if (shown.has(key)) continue; // 本周已有该课，不叠加
+        col.appendChild(buildCourseBlock(e, false, axis, g));
+        shown.add(key);
+      }
     }
 
     if (main) {
@@ -455,7 +471,10 @@ function buildCourseBlock(e, isCurrent, axis, gap) {
 
   const style = courseBlockStyle(c);
   el.style.background = style.bg;
-  el.style.color = style.text;
+  // 文字颜色：auto=按格子色亮度自动；black/white 为用户强制指定
+  if (s.courseTextColor === "black") el.style.color = "#26282e";
+  else if (s.courseTextColor === "white") el.style.color = "#ffffff";
+  else el.style.color = style.text;
   el.style.fontSize = s.courseTextSize + "px";
   el.style.borderRadius = s.cornerRadius + "px";
   if (s.textHCenter) el.classList.add("txt-hcenter");
@@ -1407,6 +1426,32 @@ function openSettings() {
   $("s_sundayFirst").checked = s.sundayFirst;
   $("s_textFs").value = s.courseTextSize;
   $("textFsVal").textContent = s.courseTextSize + "px";
+  // 格子文字颜色自绘下拉（auto=按格子色亮度 / black / white）
+  const colorNames = { auto: "自动", black: "黑色", white: "白色" };
+  const tcBtn = $("s_textColorBtn");
+  const tcMenu = $("s_textColorMenu");
+  const tcHidden = $("s_textColor");
+  tcHidden.value = s.courseTextColor || "auto";
+  tcBtn.textContent = colorNames[tcHidden.value] || "自动";
+  tcMenu.innerHTML = ["auto", "black", "white"]
+    .map(
+      (v) =>
+        `<button type="button" data-tc="${v}" class="${v === tcHidden.value ? "sel" : ""}">${colorNames[v]}</button>`,
+    )
+    .join("");
+  tcBtn.onclick = () => {
+    tcMenu.hidden = !tcMenu.hidden;
+  };
+  tcMenu.onclick = (e) => {
+    const b = e.target.closest("button[data-tc]");
+    if (!b) return;
+    tcHidden.value = b.dataset.tc;
+    tcBtn.textContent = colorNames[b.dataset.tc] || "自动";
+    tcMenu.hidden = true;
+    tcMenu
+      .querySelectorAll("button[data-tc]")
+      .forEach((x) => x.classList.toggle("sel", x === b));
+  };
   $("s_radius").value = s.cornerRadius;
   $("radiusVal").textContent = s.cornerRadius + "px";
   $("s_courseGap").value = s.courseGap;
@@ -1474,6 +1519,7 @@ function collectSettings() {
   s.showSunday = $("s_showSunday").checked;
   s.sundayFirst = $("s_sundayFirst").checked;
   s.courseTextSize = Number($("s_textFs").value);
+  s.courseTextColor = $("s_textColor").value || "auto";
   s.cornerRadius = Number($("s_radius").value);
   s.courseGap = Number($("s_courseGap").value);
   s.textHCenter = $("s_textHCenter").checked;

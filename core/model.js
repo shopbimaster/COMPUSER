@@ -37,24 +37,25 @@
     termStart: null,        // 学期开始日期（默认取本周一）
     totalWeeks: 20,
     classNum: 11,
-    itemHeight: 56,         // 原版默认 56dp
-    alpha: 100,             // 新版风格：实色课程块（可调半透明）
-    saturation: 100,        // 课程块饱和度：在原色基础上按比例降低（0=全灰）
+    itemHeight: 54,         // 格子高度
+    alpha: 80,              // 课程块不透明度
+    saturation: 80,         // 课程块饱和度：在原色基础上按比例降低（0=全灰）
     showOtherWeek: true,
-    otherWeekAlpha: 50,     // 非本周课程不透明度 10-100
+    otherWeekAlpha: 50,     // 下周课程不透明度 10-100（叠加显示下周课程时）
     showWeekend: true,      // 兼容旧字段：关闭 → showSaturday/showSunday 均 false
     showSaturday: true,     // 显示周六列
     showSunday: true,       // 显示周日列
     showSchName: true,      // 课表上方居中显示课表名
     showWeekTitle: true,    // 顶栏显示周序数
-    headerTextSize: 13,     // 表头星期文字大小 10-16
+    headerTextSize: 15,     // 表头星期文字大小 10-16
     showColBg: true,        // 日列衬底（仿 v1.1：整列铺卡片色，列间缝隙形成分隔）
-    colBgAlpha: 100,        // 衬底不透明度 10-100
+    colBgAlpha: 25,         // 衬底不透明度 10-100
     sundayFirst: false,
     sameLen: false,         // 每节课时长相同
     courseTextSize: IS_ANDROID ? 10 : 12, // 格子内课程文字大小 9-16（安卓出厂 10）
-    cornerRadius: 7,        // 格子圆角 0-16
-    courseGap: 1.5,         // 课程格子边距（列宽百分比 0-10）：课程与列衬底、课程之间的统一间距
+    courseTextColor: 'auto', // 格子文字颜色：auto（按格子色亮度）| black | white
+    cornerRadius: 6,        // 格子圆角 0-16
+    courseGap: 2.5,         // 课程格子边距（列宽百分比 0-10）：课程与列衬底、课程之间的统一间距
     textHCenter: false,     // 格子文字水平居中
     textVCenter: false,     // 格子文字垂直居中
     showTimeInGrid: true,   // 在格子内显示上课节次
@@ -77,30 +78,34 @@
     const s = Object.assign({}, DEFAULT_SETTINGS, raw || {});
     s.classNum = clamp(Number(s.classNum) || 11, 8, 16);
     s.totalWeeks = clamp(Number(s.totalWeeks) || 20, 1, 40);
-    s.itemHeight = clamp(Number(s.itemHeight) || 56, 40, 90);
-    s.alpha = clamp(Number(s.alpha) || 100, 10, 100);
+    s.itemHeight = clamp(Number(s.itemHeight) || DEFAULT_SETTINGS.itemHeight, 40, 90);
+    s.alpha = clamp(Number(s.alpha) || DEFAULT_SETTINGS.alpha, 10, 100);
     // 0 是合法值（全灰），不能走 `|| 默认` 的短路写法
     const sat = Number(s.saturation);
-    s.saturation = isNaN(sat) ? 100 : clamp(sat, 0, 100);
+    s.saturation = isNaN(sat) ? DEFAULT_SETTINGS.saturation : clamp(sat, 0, 100);
     s.showOtherWeek = s.showOtherWeek !== false && s.showOtherWeek !== 'false';
-    s.otherWeekAlpha = clamp(Number(s.otherWeekAlpha) || 50, 10, 100);
+    s.otherWeekAlpha = clamp(Number(s.otherWeekAlpha) || DEFAULT_SETTINGS.otherWeekAlpha, 10, 100);
     s.showWeekend = s.showWeekend !== false && s.showWeekend !== 'false';
     // 旧版仅有 showWeekend 总开关 → 迁移为周六/周日独立开关
     const weekendOff = !s.showWeekend && raw && raw.showSaturday === undefined;
     s.showSaturday = weekendOff ? false : (s.showSaturday !== false && s.showSaturday !== 'false');
     s.showSunday = weekendOff ? false : (s.showSunday !== false && s.showSunday !== 'false');
-    s.headerTextSize = clamp(Number(s.headerTextSize) || 13, 10, 16);
+    s.headerTextSize = clamp(Number(s.headerTextSize) || DEFAULT_SETTINGS.headerTextSize, 10, 16);
     s.showSchName = s.showSchName !== false && s.showSchName !== 'false';
     s.showWeekTitle = s.showWeekTitle !== false && s.showWeekTitle !== 'false';
     s.showColBg = s.showColBg !== false && s.showColBg !== 'false';
-    s.colBgAlpha = clamp(Number(s.colBgAlpha) || 100, 10, 100);
+    s.colBgAlpha = clamp(Number(s.colBgAlpha) || DEFAULT_SETTINGS.colBgAlpha, 10, 100);
     s.sundayFirst = !!s.sundayFirst;
     s.courseTextSize = clamp(
       Number(s.courseTextSize) || DEFAULT_SETTINGS.courseTextSize,
       9,
       16,
     );
-    s.cornerRadius = clamp(Number(s.cornerRadius) || 7, 0, 16);
+    s.courseTextColor =
+      s.courseTextColor === 'black' || s.courseTextColor === 'white'
+        ? s.courseTextColor
+        : 'auto';
+    s.cornerRadius = clamp(Number(s.cornerRadius) || DEFAULT_SETTINGS.cornerRadius, 0, 16);
     // 0 是合法值（无间距），不能走 `|| 默认` 的短路写法
     const cg = Number(s.courseGap);
     s.courseGap = isNaN(cg) ? DEFAULT_SETTINGS.courseGap : clamp(cg, 0, 10);

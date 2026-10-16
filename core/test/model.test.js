@@ -67,16 +67,28 @@ test('normalizeSettings: courseGap 0 为合法值，超界收敛 0-10', () => {
   assert.strictEqual(M.normalizeSettings({ courseGap: 0 }).courseGap, 0);
   assert.strictEqual(M.normalizeSettings({ courseGap: 99 }).courseGap, 10);
   assert.strictEqual(M.normalizeSettings({ courseGap: -3 }).courseGap, 0);
-  assert.strictEqual(M.normalizeSettings({ courseGap: 'abc' }).courseGap, 1.5);
+  assert.strictEqual(
+    M.normalizeSettings({ courseGap: 'abc' }).courseGap,
+    M.DEFAULT_SETTINGS.courseGap,
+  );
 });
 
-test('normalizeSettings: saturation 0 为合法值（全灰），缺省 100，超界收敛 0-100', () => {
+test('normalizeSettings: saturation 0 为合法值（全灰），超界收敛 0-100，缺省取默认表', () => {
   assert.strictEqual(M.normalizeSettings({ saturation: 0 }).saturation, 0);
   assert.strictEqual(M.normalizeSettings({ saturation: 150 }).saturation, 100);
   assert.strictEqual(M.normalizeSettings({ saturation: -5 }).saturation, 0);
-  assert.strictEqual(M.normalizeSettings({ saturation: 'abc' }).saturation, 100);
-  assert.strictEqual(M.normalizeSettings({}).saturation, 100);
-  assert.strictEqual(M.normalizeSettings({}).courseGap, 1.5);
+  assert.strictEqual(
+    M.normalizeSettings({ saturation: 'abc' }).saturation,
+    M.DEFAULT_SETTINGS.saturation,
+  );
+  assert.strictEqual(
+    M.normalizeSettings({}).saturation,
+    M.DEFAULT_SETTINGS.saturation,
+  );
+  assert.strictEqual(
+    M.normalizeSettings({}).courseGap,
+    M.DEFAULT_SETTINGS.courseGap,
+  );
 });
 
 test('normalizeSlot: 周次倒置收敛、customTime 校验、day 越界', () => {
