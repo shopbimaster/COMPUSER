@@ -178,13 +178,16 @@ fn read_content_file(uri: String) -> Result<String, String> {
                 .and_then(|v| v.l())
         );
         let jstr = j!("new_string", env.new_string(&uri));
+        // android.net.Uri 无公开构造函数，必须用静态方法 Uri.parse(String)
         let juri = j!(
             "Uri.parse",
-            env.new_object(
+            env.call_static_method(
                 "android/net/Uri",
-                "(Ljava/lang/String;)V",
+                "parse",
+                "(Ljava/lang/String;)Landroid/net/Uri;",
                 &[JValue::Object(&jstr)]
             )
+            .and_then(|v| v.l())
         );
         let stream = j!(
             "openInputStream",
