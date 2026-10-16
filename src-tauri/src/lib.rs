@@ -28,6 +28,66 @@ fn os_platform() -> &'static str {
     std::env::consts::OS
 }
 
+// Android 状态栏图标颜色随应用主题：浅色页面 → 深色图标（APPEARANCE_LIGHT_STATUS_BARS），
+// 深色页面 → 白色图标（清除该 appearance）。edge-to-edge 下状态栏背景透明，仅切前景。
+// UI 调用必须主线程：run_on_main_thread + JNI（WindowInsetsController，API 30+；
+// 更低版本静默无效——近年设备均满足）。
+#[tauri::command]
+fn set_status_bar_icons(app: tauri::AppHandle, light: bool) {
+    #[cfg(target_os = "android")]
+    {
+        let r = app.run_on_main_thread(move || {
+            use jni::objects::{JObject, JValue};
+            // ndk-context 0.1：context()/vm() 返回 *mut c_void（无 Option 包装）
+            let ctx = ndk_context::android_context().context();
+            if ctx.is_null() {
+                return;
+            }
+            let vm = unsafe {
+                match jni::JavaVM::from_raw(ctx.cast()) {
+                    Ok(v) => v,
+                    Err(_) => return,
+                }
+            };
+            let mut env = match vm.attach_current_thread() {
+                Ok(e) => e,
+                Err(_) => return,
+            };
+            let activity = unsafe { JObject::from_raw(ctx.cast()) };
+            let Ok(window) = env
+                .call_method(&activity, "getWindow", "()Landroid/view/Window;", &[])
+                .and_then(|v| v.l())
+            else {
+                return;
+            };
+            // WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS = 0x08
+            let Ok(controller) = env
+                .call_method(&window, "getInsetsController", "()Landroid/view/WindowInsetsController;", &[])
+                .and_then(|v| v.l())
+            else {
+                return;
+            };
+            if controller.is_null() {
+                return;
+            }
+            let appearance: i32 = if light { 0x08 } else { 0 };
+            let _ = env.call_method(
+                &controller,
+                "setSystemBarsAppearance",
+                "(II)V",
+                &[JValue::Int(appearance), JValue::Int(0x08)],
+            );
+        });
+        if let Err(e) = r {
+            eprintln!("set_status_bar_icons: {e}");
+        }
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, light);
+    }
+}
+
 // ---- 存储：与 Electron 版同格式（schedule.json 文本） ----
 
 #[tauri::command]
@@ -99,6 +159,7 @@ pub fn run() {
         .plugin(tauri_plugin_share::init())
         .invoke_handler(tauri::generate_handler![
             os_platform,
+            set_status_bar_icons,
             load_data,
             save_data,
             write_file,

@@ -1814,20 +1814,26 @@ textarea {
 }
 
 /* ============ 窄屏（手机 / 移动端 WebView）适配 ============
-   手机上顶栏固有的居中课表名 + 210px 周数块必然重叠：改为左对齐随流布局，
-   字号整体收紧，右侧按钮缩小，给 7 列课表留出宽度 */
+   切周靠左右滑动手势（箭头按钮隐藏），周数块贴左；课表名保持绝对居中
+   （max-width 收缩防长名与两侧相撞）；月份节次轴紧贴左边框，给 7 列课表留宽度 */
 @media (max-width: 620px) {
   .topbar {
     padding: 8px 12px 2px;
     gap: 6px;
+  }
+  .wk-arrow {
+    display: none; /* 手机端省略左右按钮：切周走左右滑动手势 */
   }
   .tb-left {
     min-width: 0;
     align-items: flex-start;
     padding: 2px 6px 4px;
   }
+  .tb-title-row {
+    justify-content: flex-start;
+  }
   .tb-title {
-    font-size: 16px;
+    font-size: 15px;
   }
   .tb-status {
     font-size: 11.5px;
@@ -1836,15 +1842,16 @@ textarea {
     font-size: 11px;
     text-align: left;
   }
+  /* 课表名回到顶栏正中央（绝对居中），限宽省略防与两侧相撞 */
   .tb-center {
-    position: static;
-    transform: none;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
     font-size: 15px;
-    flex: 0 1 auto;
-    min-width: 0;
+    max-width: 30%;
     overflow: hidden;
     text-overflow: ellipsis;
-    padding-top: 2px;
   }
   .tb-actions {
     gap: 0;
@@ -1857,8 +1864,9 @@ textarea {
     width: 19px;
     height: 19px;
   }
+  /* 月份/节次轴紧贴左边框 */
   .schedule-wrap {
-    padding: 6px 8px 16px;
+    padding: 6px 8px 16px 2px;
   }
   .time-col .sec {
     font-size: 9px;

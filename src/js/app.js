@@ -1495,10 +1495,16 @@ function saveSettings() {
 }
 
 // ---------- 今日课程 ----------
+// 移动端（Tauri Android）：状态栏图标随应用主题切换（浅色页面深图标 / 深色页面白图标）
+function syncStatusBarTheme() {
+  Ports.statusBar?.setLightIcons(state.prefs.theme !== "dark");
+}
+
 function toggleTheme() {
   state.prefs.theme = state.prefs.theme === "dark" ? "light" : "dark";
   document.documentElement.dataset.theme = state.prefs.theme;
   updateThemeToggleLabel();
+  syncStatusBarTheme();
   persist();
   render();
 }
@@ -1862,6 +1868,42 @@ function bindEvents() {
     e.stopPropagation();
     setViewWeek(viewWeek + 1);
   };
+
+  // 触屏左右滑动切换周次（手机端隐藏切周箭头后的替代交互）：
+  // 横向位移 >60px 且约为纵向 2 倍、600ms 内完成，避免误伤纵向滚动与双击添加
+  (() => {
+    const wrap = document.querySelector(".schedule-wrap");
+    let sx = 0,
+      sy = 0,
+      st = 0;
+    wrap.addEventListener(
+      "touchstart",
+      (e) => {
+        if (e.touches.length !== 1) return;
+        sx = e.touches[0].clientX;
+        sy = e.touches[0].clientY;
+        st = Date.now();
+      },
+      { passive: true },
+    );
+    wrap.addEventListener(
+      "touchend",
+      (e) => {
+        const t = e.changedTouches[0];
+        const dx = t.clientX - sx;
+        const dy = t.clientY - sy;
+        if (
+          Date.now() - st < 600 &&
+          Math.abs(dx) > 60 &&
+          Math.abs(dy) < 50 &&
+          Math.abs(dx) > Math.abs(dy) * 2
+        ) {
+          setViewWeek(viewWeek + (dx < 0 ? 1 : -1));
+        }
+      },
+      { passive: true },
+    );
+  })();
 
   // 顶栏：周标题 → 左上角小菜单（回到本周）；三点按钮 → 周数/课表/功能面板
   $("tbWeekBtn").onclick = (e) => {
@@ -2312,6 +2354,7 @@ async function init() {
   );
 
   updateThemeToggleLabel();
+  syncStatusBarTheme();
   bindEvents();
   render();
 

@@ -24,3 +24,8 @@ tauri-plugin-dialog = "2"
 tauri-plugin-share = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+# Android 状态栏图标控制（JNI 调 WindowInsetsController）——版本对齐 tauri 依赖树避免重复编译
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21.1"
+ndk-context = "0.1.1"
