@@ -1382,18 +1382,7 @@ function openSettings() {
     cnMenu.hidden = true;
     buildTimeTable(Number(b.dataset.cn)); // 节数变化即时同步时间表（保留已填值）
   };
-  // 开机自启（应用级开关，经系统登录项；浏览器模式无此能力则隐藏该行）
-  const autoRow = $("rowAutoStart");
-  if (Ports.autostart) {
-    autoRow.hidden = false;
-    Ports.autostart.get().then((on) => ($("s_autoStart").checked = !!on));
-    $("s_autoStart").onchange = async (e) => {
-      const ok = await Ports.autostart.set(e.target.checked);
-      e.target.checked = !!ok; // 以系统实际结果回显（注册失败自动回退）
-    };
-  } else {
-    autoRow.hidden = true;
-  }
+  // 开机自启设置项已移除（安装向导承担）；保留端口供未来扩展
   $("s_alpha").value = s.alpha;
   $("alphaVal").textContent = s.alpha + "%";
   $("s_saturation").value = s.saturation;

@@ -256,8 +256,12 @@ select option {
 .schedule-wrap {
   flex: 1;
   overflow: hidden auto; /* 横向被周滑动轨道占用，只允许纵向滚动 */
+  scrollbar-width: none; /* 纵向滚动只靠手势/滚轮，不显示滑块 */
   padding: 8px 14px 20px;
   position: relative;
+}
+.schedule-wrap::-webkit-scrollbar {
+  display: none;
 }
 
 /* ============ 周滑动轨道（手机端拖拽跟手切换周次） ============ */
@@ -395,7 +399,7 @@ select option {
 .course-block {
   position: absolute;
   border-radius: 7px;
-  padding: 4px 5px;
+  padding: 3px;
   overflow: hidden;
   cursor: pointer;
   display: flex;
@@ -1900,9 +1904,10 @@ textarea {
     width: 19px;
     height: 19px;
   }
-  /* 节次轴列整体抵到左边界、课表列抵到节次列（列缝 2px），列内文字保持居中 */
+  /* 节次轴列整体抵到左边界、课表列抵到节次列（列缝 2px），列内文字保持居中；
+     最后一天与屏幕右边框只留 1px（衬底间距的一半） */
   .schedule-wrap {
-    padding: 4px 4px 16px 0;
+    padding: 4px calc(var(--gap, 4px) / 2) 16px 0;
   }
   .grid {
     gap: 0 2px;
@@ -1954,10 +1959,17 @@ textarea {
     flex: 0 0 auto;
     justify-content: flex-end;
   }
-  /* 「上课时间」行（含每节等长/时长/应用到全部）：标签独占一行，控件组换行内部再折行 */
+  /* 「上课时间」行（含每节等长/时长/应用到全部）：标签独占一行，控件组换行内部再折行
+     （row-samelen 显式类 + :has 双保险，老 WebView 不支持 :has 时也能单起一行） */
+  .modal-body .set-row.row-samelen,
   .modal-body .set-row:has(.same-len-edit) {
     flex-wrap: wrap;
   }
+  .modal-body .set-row.row-samelen .sr-label,
+  .modal-body .set-row:has(.same-len-edit) .sr-label {
+    flex: 0 0 100%;
+  }
+  .modal-body .set-row.row-samelen .sr-ctrl,
   .modal-body .set-row:has(.same-len-edit) .sr-ctrl {
     flex: 1 1 100%;
   }
@@ -1965,3 +1977,4 @@ textarea {
     flex-wrap: wrap;
     row-gap: 6px;
   }
+}
