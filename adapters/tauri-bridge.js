@@ -48,6 +48,9 @@
         const name = defaultName || 'campuser-export.txt';
         if (ports.platform === 'android') {
           const path = await invoke('write_temp_file', { name, text: String(text) });
+          // 系统分享面板（含「保存到文件」）关闭回应用时无法回调，
+          // 由 MainActivity onResume 派发的 resume 事件给出反馈
+          window.__campuserSharePending = true;
           await invoke('share_file_android', { path, mime: mimeOf(name) });
           return `（已唤起分享：${name}）`;
         }

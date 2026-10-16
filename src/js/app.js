@@ -266,12 +266,97 @@ function render(reflowed) {
   }
 }
 
+// 命中时间轴各行（首尾各放宽一个边距容差），返回节次下标（0 基）
+function hitSection(y, axis, gapPx) {
+  let secIdx = axis.rows.length - 1;
+  for (let i = 0; i < axis.rows.length; i++) {
+    if (y < axis.rows[i].y1 + gapPx) {
+      secIdx = i;
+      break;
+    }
+  }
+  return secIdx;
+}
+
+// ---------- 手机端单点加课（tap-select） ----------
+let tapSel = null; // { day, start, step, el }
+
+function clearTapSelect() {
+  if (tapSel) {
+    tapSel.el.remove();
+    tapSel = null;
+  }
+}
+
+// 在空位放置/更新粉色选中块：再次点按选中块进入新建课程（时间按选中区域预填），
+// 选中块上上下拖动伸缩节数（加号始终居中）
+function buildTapBlock(col, axis, day, start, step, g, itemHeight) {
+  clearTapSelect();
+  const el = document.createElement("div");
+  el.className = "course-block tap-select";
+  const r0 = axis.rows[start - 1];
+  const place = (st, sp) => {
+    const r1 = axis.rows[Math.min(st + sp - 1, axis.rows.length) - 1];
+    el.style.top = r0.y0 + "px";
+    el.style.height = r1.y1 - r0.y0 + "px";
+  };
+  place(start, step);
+  el.style.left = g + "px";
+  el.style.right = g + "px";
+  el.innerHTML = '<span class="tap-plus">＋</span>';
+
+  let dragY = 0;
+  let dragStep = step;
+  el.addEventListener(
+    "touchstart",
+    (ev) => {
+      dragY = ev.touches[0].clientY;
+      dragStep = tapSel ? tapSel.step : step;
+    },
+    { passive: true },
+  );
+  el.addEventListener(
+    "touchmove",
+    (ev) => {
+      ev.preventDefault(); // 伸缩期间不滚动页面
+      if (!tapSel) return;
+      const per =
+        axis.rows.length > 1 ? axis.rows[1].y0 - axis.rows[0].y0 : itemHeight;
+      const step2 = Math.max(
+        1,
+        Math.min(
+          axis.rows.length - start + 1,
+          dragStep + Math.round((ev.touches[0].clientY - dragY) / per),
+        ),
+      );
+      if (step2 !== tapSel.step) {
+        tapSel.step = step2;
+        place(start, step2);
+      }
+    },
+    { passive: false },
+  );
+  el.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    const sel = tapSel ? { ...tapSel, el: undefined } : { day, start, step };
+    clearTapSelect();
+    openCourseModal("add", null, null, {
+      day: sel.day,
+      start: sel.start,
+      step: sel.step,
+    });
+  });
+  tapSel = { day, start, step, el };
+  col.appendChild(el);
+}
+
 // 渲染任意周到任意网格容器（主 grid 或滑动轨道的目标页 gridB）
 function renderInto(gridEl, week, opts = {}) {
   const main = !!opts.main;
   const s = currentSettings();
   const todayStr = fmtDate(new Date());
   const days = dayOrder();
+  if (Ports.platform === "android") clearTapSelect(); // 重渲后旧选中块失效
   // 周六/周日独立开关（旧 showWeekend 已迁移）；关闭仅隐藏对应列
   const visibleDays = days.filter(
     (d) => d <= 5 || (d === 6 && s.showSaturday) || (d === 7 && s.showSunday),
@@ -378,19 +463,25 @@ function renderInto(gridEl, week, opts = {}) {
     }
 
     if (main) {
-      col.addEventListener("dblclick", (ev) => {
-        const rect = col.getBoundingClientRect();
-        const y = ev.clientY - rect.top;
-        // 命中时间轴各行（首尾各放宽一个边距容差），取包含纵坐标的一节
-        let secIdx = axis.rows.length - 1;
-        for (let i = 0; i < axis.rows.length; i++) {
-          if (y < axis.rows[i].y1 + gapPx) {
-            secIdx = i;
-            break;
-          }
-        }
-        openCourseModal("add", null, null, { day: d, start: secIdx + 1 });
-      });
+      if (Ports.platform === "android") {
+        // 手机端单点加课：点击空位出现粉色选中块（加号居中），
+        // 选中后上下拖动伸缩节数，再点选中块进入新建课程（时间已按选中区域预填）
+        col.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          const rect = col.getBoundingClientRect();
+          const secIdx = hitSection(ev.clientY - rect.top, axis, gapPx);
+          buildTapBlock(col, axis, d, secIdx + 1, 1, g, s.itemHeight);
+        });
+      } else {
+        col.addEventListener("dblclick", (ev) => {
+          const secIdx = hitSection(
+            ev.clientY - col.getBoundingClientRect().top,
+            axis,
+            gapPx,
+          );
+          openCourseModal("add", null, null, { day: d, start: secIdx + 1 });
+        });
+      }
     }
 
     gridEl.appendChild(col);
@@ -580,7 +671,7 @@ function openCourseModal(mode, course, slot, preset = {}) {
         {
           day: preset.day || 1,
           start: preset.start || 1,
-          step: 1,
+          step: preset.step || 1,
           startWeek: 1,
           endWeek: currentSettings().totalWeeks,
         },
@@ -1548,7 +1639,20 @@ function saveSettings() {
   const sch = currentSchedule();
   const oldTermStart = sch.settings.termStart;
   sch.name = $("s_scheduleName").value.trim() || sch.name;
-  sch.settings = M.normalizeSettings(collectSettings());
+  const raw = collectSettings();
+  // 上课时间顺序检查：下课须晚于上课；下节课开始不得早于上节课结束
+  for (let i = 0; i < raw.classNum; i++) {
+    const t = raw.times[i];
+    if (t.end <= t.start) {
+      showToast(`第 ${i + 1} 节的下课时间须晚于上课时间`);
+      return;
+    }
+    if (i > 0 && t.start < raw.times[i - 1].end) {
+      showToast(`第 ${i + 1} 节的上课时间不能早于第 ${i} 节的下课时间`);
+      return;
+    }
+  }
+  sch.settings = M.normalizeSettings(raw);
 
   viewWeek = Math.min(sch.settings.totalWeeks, Math.max(1, viewWeek));
   if (oldTermStart !== sch.settings.termStart) {
@@ -2088,7 +2192,10 @@ function bindEvents() {
 
   // 顶栏：周标题 → 左上角小菜单（回到本周）；三点按钮 → 周数/课表/功能面板
   $("tbWeekBtn").onclick = (e) => {
-    if (!e.target.closest(".wk-arrow")) toggleMenu("weekQuickMenu");
+    if (e.target.closest(".wk-arrow")) return;
+    // 已在当前周时不弹「回到本周」菜单
+    if (viewWeek === calcCurrentWeek()) return;
+    toggleMenu("weekQuickMenu");
   };
   $("weekQuickMenu").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-act]");
@@ -2203,6 +2310,21 @@ function bindEvents() {
     if (!list) return;
     doImportAsNew(list);
   };
+  // 手机端：点击空白处清除单点加课选中块；系统分享面板关闭回到应用时给出反馈
+  // （bindEvents 时 platform 可能未填充，回调内再判断）
+  $("grid").addEventListener("click", () => {
+    if (Ports.platform === "android") clearTapSelect();
+  });
+  document.addEventListener("campuser-resume", () => {
+    if (Ports.platform !== "android") return;
+    if (window.__campuserSharePending) {
+      window.__campuserSharePending = false;
+      showToast(
+        "已通过系统分享导出；如需保存到本地，请在分享面板选「保存到文件」",
+        5000,
+      );
+    }
+  });
 
   // 周次选择弹窗：点选 toggle、按住滑动连选（pointer capture 后经坐标命中格子）
   $("wdModeBtn").onclick = () => {

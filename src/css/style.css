@@ -46,6 +46,8 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  /* 手机端去掉系统自带的浅蓝点击高亮，与自绘风格统一 */
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
@@ -451,6 +453,20 @@ select option {
 /* 下周叠加课程：保留原本颜色，仅按设置降低不透明度（不再灰度化） */
 .course-block.other-week {
   opacity: var(--ow-alpha, 0.5);
+}
+/* 手机端单点加课的选中块：主题粉 + 白色加号居中 */
+.course-block.tap-select {
+  background: var(--today);
+  z-index: 4;
+  align-items: center;
+  justify-content: center;
+}
+.course-block.tap-select .tap-plus {
+  color: #fff;
+  font-size: 24px;
+  font-weight: 300;
+  line-height: 1;
+  pointer-events: none;
 }
 /* 格子文字对齐开关（设置驱动） */
 .course-block.txt-hcenter {
@@ -1957,6 +1973,11 @@ textarea {
     flex-wrap: nowrap;
   }
   .modal-body .set-row:has(input[type="checkbox"]) .sr-ctrl {
+    flex: 0 0 auto;
+    justify-content: flex-end;
+  }
+  /* 格子文字颜色下拉：同样靠右 */
+  .modal-body .set-row:has(#s_textColorBtn) .sr-ctrl {
     flex: 0 0 auto;
     justify-content: flex-end;
   }
