@@ -222,6 +222,26 @@
       </div>
     </div>
 
+    <!-- 导入时询问是否沿用当前外观/上课时间设置 -->
+    <div class="modal-overlay" id="importSettingsModal" hidden>
+      <div class="modal sm">
+        <div class="modal-header">
+          <span>导入设置</span>
+        </div>
+        <div class="modal-body">
+          <div class="import-summary" id="importSettingsText"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="pill-btn" id="btnKeepFileSettings">
+            保留文件设置
+          </button>
+          <button class="pill-btn primary" id="btnUseCurrentSettings">
+            沿用当前设置
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 课程 查看 detail / 编辑 edit 弹窗 -->
     <div class="modal-overlay" id="courseModal" hidden>
       <div class="modal">
@@ -712,6 +732,12 @@
               <span class="sr-label">格子文字垂直居中</span>
               <div class="sr-ctrl">
                 <input type="checkbox" id="s_textVCenter" />
+              </div>
+            </div>
+            <div class="set-row">
+              <span class="sr-label">在格子内显示上课节次</span>
+              <div class="sr-ctrl">
+                <input type="checkbox" id="s_showTimeInGrid" />
               </div>
             </div>
             <div class="set-row">

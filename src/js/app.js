@@ -466,6 +466,8 @@ function buildCourseBlock(e, isCurrent, axis, gap) {
   if (sl.isOdd === 2) html += `<div class="course-tag">双周</div>`;
   if (sl.customTime)
     html += `<div class="course-tag">${sl.customTime.start}~${sl.customTime.end}</div>`;
+  if (s.showTimeInGrid && !sl.customTime)
+    html += `<div class="course-sec">${sl.start}-${sl.start + sl.step - 1}节</div>`;
   html += `<div class="course-name">${escapeHtml(c.name)}</div>`;
   if (s.showTeachInGrid && sl.teach)
     html += `<div class="course-teach">${escapeHtml(sl.teach)}</div>`;
@@ -1422,6 +1424,7 @@ function openSettings() {
   $("courseGapVal").textContent = s.courseGap + "%";
   $("s_textHCenter").checked = s.textHCenter;
   $("s_textVCenter").checked = s.textVCenter;
+  $("s_showTimeInGrid").checked = s.showTimeInGrid;
   $("s_showTeachInGrid").checked = s.showTeachInGrid;
   // 预留接口：s_showNoteInGrid 已挂 UI，渲染逻辑后续版本接入（网格辅助线项已移除）
   $("s_showNoteInGrid").checked = s.showNoteInGrid;
@@ -1486,6 +1489,7 @@ function collectSettings() {
   s.courseGap = Number($("s_courseGap").value);
   s.textHCenter = $("s_textHCenter").checked;
   s.textVCenter = $("s_textVCenter").checked;
+  s.showTimeInGrid = $("s_showTimeInGrid").checked;
   s.showTeachInGrid = $("s_showTeachInGrid").checked;
   s.showNoteInGrid = $("s_showNoteInGrid").checked;
   s.sameLen = $("s_sameLen").checked;
@@ -1804,10 +1808,7 @@ async function handleImportText(text, name) {
       openModal("icsFormatModal");
       return;
     }
-    importAsNewSchedules([first.schedule]);
-    showToast(
-      `已导入课表「${first.schedule.name}」：${first.schedule.courses.length} 门课程`,
-    );
+    importAsNewSchedules([first.schedule], true);
     return;
   }
 
@@ -1817,7 +1818,7 @@ async function handleImportText(text, name) {
     return;
   }
   if (parsed.kind === "share") {
-    importAsNewSchedules([parsed.schedule]);
+    importAsNewSchedules([parsed.schedule], true);
     return;
   }
   // 完整备份 → 选择导入方式
@@ -1828,7 +1829,58 @@ async function handleImportText(text, name) {
   openModal("importChoiceModal");
 }
 
-function importAsNewSchedules(list) {
+// ---------- 导入时的设置统一询问 ----------
+// 比较「外观 + 上课时间」白名单项（不含学期起止/周数等课表自身数据）
+const SETTINGS_COMPARE_KEYS = [
+  "alpha",
+  "saturation",
+  "courseTextSize",
+  "cornerRadius",
+  "courseGap",
+  "textHCenter",
+  "textVCenter",
+  "showColBg",
+  "colBgAlpha",
+  "headerTextSize",
+  "otherWeekAlpha",
+  "showOtherWeek",
+  "showSaturday",
+  "showSunday",
+  "sundayFirst",
+  "showSchName",
+  "showWeekTitle",
+  "classNum",
+  "sameLen",
+];
+function settingsDiffer(a, b) {
+  for (const k of SETTINGS_COMPARE_KEYS) {
+    if ((a[k] || 0) !== (b[k] || 0)) return true;
+  }
+  return JSON.stringify(a.times || []) !== JSON.stringify(b.times || []);
+}
+
+function importAsNewSchedules(list, askSettings = false) {
+  const cur = currentSchedule().settings || {};
+  // 单课表导入（口令/ICS/扫码）：文件设置与当前不同时询问是否一键沿用当前设置。
+  // 备份导入是完整恢复语义，不询问。
+  if (
+    askSettings &&
+    list.length === 1 &&
+    settingsDiffer(list[0].settings || {}, cur)
+  ) {
+    pendingImportList = list;
+    $("importSettingsText").innerHTML =
+      `导入的课表「<b>${escapeHtml(list[0].name || "未命名")}</b>」与当前课表的` +
+      `<b>外观或上课时间</b>设置存在差异。<br>是否沿用当前课表的设置（新导入的课表将一键统一）？`;
+    openModal("importSettingsModal");
+    return;
+  }
+  doImportAsNew(list);
+}
+
+let pendingImportList = null;
+
+function doImportAsNew(list) {
   const existing = new Set(state.schedules.map((s) => s.name));
   let first = null;
   for (const raw of list) {
@@ -1849,6 +1901,16 @@ function importAsNewSchedules(list) {
   updateWeekUI();
   render();
   showToast(`已导入 ${list.length} 个课表`);
+}
+
+// 沿用当前课表的外观/上课时间设置：白名单键 + 时间表深拷贝覆盖到导入课表
+function applyCurrentSettingsTo(list) {
+  const cur = currentSchedule().settings || {};
+  for (const raw of list) {
+    if (!raw.settings) raw.settings = {};
+    for (const k of SETTINGS_COMPARE_KEYS) raw.settings[k] = cur[k];
+    raw.settings.times = (cur.times || []).map((t) => ({ ...t }));
+  }
 }
 
 async function confirmImportChoice() {
@@ -1884,10 +1946,7 @@ function confirmIcsFormat() {
     showToast("导入失败：" + r.error);
     return;
   }
-  importAsNewSchedules([r.schedule]);
-  showToast(
-    `已导入课表「${r.schedule.name}」：${r.schedule.courses.length} 门课程`,
-  );
+  importAsNewSchedules([r.schedule], true);
 }
 
 // ---------- 事件绑定 ----------
@@ -2089,10 +2148,26 @@ function bindEvents() {
       return;
     }
     closeModal("codeImportModal");
-    importAsNewSchedules([r.schedule]);
+    importAsNewSchedules([r.schedule], true);
   };
   $("btnConfirmImport").onclick = confirmImportChoice;
   $("btnConfirmIcsFormat").onclick = confirmIcsFormat;
+  // 导入设置统一询问：沿用当前设置（白名单覆盖 + 时间表深拷贝）或保留文件自带
+  $("btnUseCurrentSettings").onclick = () => {
+    const list = pendingImportList;
+    pendingImportList = null;
+    closeModal("importSettingsModal");
+    if (!list) return;
+    applyCurrentSettingsTo(list);
+    doImportAsNew(list);
+  };
+  $("btnKeepFileSettings").onclick = () => {
+    const list = pendingImportList;
+    pendingImportList = null;
+    closeModal("importSettingsModal");
+    if (!list) return;
+    doImportAsNew(list);
+  };
 
   // 周次选择弹窗：点选 toggle、按住滑动连选（pointer capture 后经坐标命中格子）
   $("wdModeBtn").onclick = () => {

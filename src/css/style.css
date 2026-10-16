@@ -66,8 +66,9 @@ body {
   color: var(--text);
   display: flex;
   flex-direction: column;
-  /* 移动端（Tauri Android edge-to-edge）：让出系统状态栏/手势条，背景渐变自然延伸 */
-  padding-top: env(safe-area-inset-top, 0px);
+  /* 移动端（Tauri Android edge-to-edge）：让出系统状态栏/手势条（留空取 inset 的 3/4），
+     背景渐变自然延伸 */
+  padding-top: calc(env(safe-area-inset-top, 0px) * 0.75);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
@@ -453,6 +454,10 @@ select option {
 }
 .course-block.txt-vcenter {
   justify-content: center;
+}
+.course-block .course-sec {
+  font-size: 0.82em;
+  opacity: 0.85;
 }
 
 /* 空状态 */
@@ -1916,7 +1921,7 @@ textarea {
     padding: 0 5px;
   }
   /* 设置弹窗（手机）：放不下的行允许控件换到下一行，文本不逐字断行；
-     上课时间表改单列，时间框占满整行 */
+     上课时间表改单列，时间框缩窄到约原来一半（右侧留空不贴边） */
   .modal-body .set-row {
     flex-wrap: wrap;
     row-gap: 6px;
@@ -1937,7 +1942,9 @@ textarea {
   .modal-body .time-table {
     grid-template-columns: 1fr;
     gap: 2px 0;
-    max-width: 72%; /* 时间框缩窄（约原来一半），右侧不再贴边 */
+  }
+  .modal-body .time-row input[type="time"] {
+    flex: 0 0 34%;
   }
   /* 勾选类设置行：选择框与文字同一行、靠右（不参与换行布局） */
   .modal-body .set-row:has(input[type="checkbox"]) {
@@ -1947,4 +1954,14 @@ textarea {
     flex: 0 0 auto;
     justify-content: flex-end;
   }
-}
+  /* 「上课时间」行（含每节等长/时长/应用到全部）：标签独占一行，控件组换行内部再折行 */
+  .modal-body .set-row:has(.same-len-edit) {
+    flex-wrap: wrap;
+  }
+  .modal-body .set-row:has(.same-len-edit) .sr-ctrl {
+    flex: 1 1 100%;
+  }
+  .modal-body .same-len-edit {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
