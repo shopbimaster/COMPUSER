@@ -97,12 +97,12 @@ test('ics: 结构、时区、RRULE 与转义', () => {
   assert.ok(ics.includes('RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=MO;UNTIL=20270111T095000'));
   assert.ok(ics.includes('LOCATION:教1\\,101'));
 
-  // 体育：周五 第3节(10:10) 单周 1~16 → INTERVAL=2，首次第1周周五 2026-10-02，末次第15周周五 2027-01-08
+  // 体育：周五 第3节(10:00) 单周 1~16 → INTERVAL=2，首次第1周周五 2026-10-02，末次第15周周五 2027-01-08
   assert.ok(ics.includes('RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=FR;UNTIL=20270108T'));
-  assert.ok(ics.includes('DTSTART;TZID=Asia/Shanghai:20261002T101000'));
+  assert.ok(ics.includes('DTSTART;TZID=Asia/Shanghai:20261002T100000'));
 
-  // 第二时间段：周三 6-7 节 9~16 周 → 首次第9周周三 2026-11-25（第6节 14:30）
-  assert.ok(ics.includes('DTSTART;TZID=Asia/Shanghai:20261125T143000'));
+  // 第二时间段：周三 6-7 节 9~16 周 → 首次第9周周三 2026-11-25（第6节 15:00）
+  assert.ok(ics.includes('DTSTART;TZID=Asia/Shanghai:20261125T150000'));
 });
 
 test('ics: 单周课从偶数起始周时首次上课为第3周', () => {
@@ -192,10 +192,10 @@ test('ics 导入: INTERVAL=2 单双周由实际日期涌现、无 RRULE 按单�
   assert.strictEqual(bi.timeSlots.length, 2);
   assert.strictEqual(bi.timeSlots[0].weeks, '010101');
   assert.strictEqual(bi.timeSlots[0].isOdd, 2); // 位串 2/4/6 → 派生双周
-  assert.strictEqual(bi.timeSlots[0].start, 3); // 无节次提示 → 默认时间表就近匹配 10:10 → 第 3 节
+  assert.strictEqual(bi.timeSlots[0].start, 3); // 无节次提示 → 默认时间表就近匹配 10:10 → 第 3 节（10:00-10:50）
   assert.strictEqual(bi.timeSlots[1].day, 3);   // 2026-10-07 周三
   assert.strictEqual(bi.timeSlots[1].weeks, '000001'); // 相对全局锚点为第 6 周
-  assert.strictEqual(bi.timeSlots[1].step, 3);  // 14:00-15:35 → 默认表最小覆盖为第 5-7 节（真实时刻存 customTime）
+  assert.strictEqual(bi.timeSlots[1].step, 2);  // 14:00-15:35 → 默认表最小覆盖为第 5-6 节（真实时刻存 customTime）
 });
 
 test('ics 导入: 本应用导出 roundtrip（节次/教师/学分/备注/单双周还原）', () => {

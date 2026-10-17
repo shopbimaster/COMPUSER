@@ -58,7 +58,7 @@ test('normalizeSettings: 边界收敛与时间表补齐', () => {
   assert.strictEqual(s.totalWeeks, 20); // 0 视为未设置 → 默认 20
   assert.strictEqual(s.times.length, 16);
   assert.strictEqual(s.times[0].end, '08:45');
-  assert.strictEqual(s.times[15].start, '01:30');
+  assert.strictEqual(s.times[15].start, '01:00');
   const s2 = M.normalizeSettings({ classNum: 1 });
   assert.strictEqual(s2.classNum, 8); // 下限 8
 });

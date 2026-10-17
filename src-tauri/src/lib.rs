@@ -243,6 +243,86 @@ fn read_content_file(uri: String) -> Result<String, String> {
     }
 }
 
+// Android：写 content:// URI。系统「另存为」窗口（ACTION_CREATE_DOCUMENT）返回 content URI，
+// std::fs 写不了 → JNI 走 ContentResolver.openOutputStream 写 UTF-8 文本，
+// 每步带步骤名报错（真机排障定位到具体环节）
+#[tauri::command]
+fn write_content_file(uri: String, text: String) -> Result<String, String> {
+    #[cfg(target_os = "android")]
+    {
+        use jni::objects::{JObject, JValue};
+        let ac = ndk_context::android_context();
+        let (vm_ptr, ctx_ptr) = (ac.vm(), ac.context());
+        if vm_ptr.is_null() || ctx_ptr.is_null() {
+            return Err("no android context".into());
+        }
+        let vm = unsafe { jni::JavaVM::from_raw(vm_ptr.cast()) }.map_err(|e| e.to_string())?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        let activity = unsafe { JObject::from_raw(ctx_ptr.cast()) };
+
+        macro_rules! j {
+            ($step:expr, $res:expr) => {
+                match $res {
+                    Ok(v) => v,
+                    Err(e) => {
+                        let _ = env.exception_clear();
+                        return Err(format!("JNI[{}]: {}", $step, e));
+                    }
+                }
+            };
+        }
+
+        let resolver = j!(
+            "getContentResolver",
+            env.call_method(&activity, "getContentResolver", "()Landroid/content/ContentResolver;", &[])
+                .and_then(|v| v.l())
+        );
+        let jstr = j!("new_string", env.new_string(&uri));
+        let juri = j!(
+            "Uri.parse",
+            env.call_static_method(
+                "android/net/Uri",
+                "parse",
+                "(Ljava/lang/String;)Landroid/net/Uri;",
+                &[JValue::Object(&jstr)]
+            )
+            .and_then(|v| v.l())
+        );
+        let stream = j!(
+            "openOutputStream",
+            env.call_method(
+                &resolver,
+                "openOutputStream",
+                "(Landroid/net/Uri;)Ljava/io/OutputStream;",
+                &[JValue::Object(&juri)]
+            )
+            .and_then(|v| v.l())
+        );
+        if stream.is_null() {
+            return Err("无法写入所选位置（provider 返回空流）".into());
+        }
+        let data = text.as_bytes();
+        let jbytes = j!("new bytes", env.new_byte_array(data.len() as i32));
+        j!("set bytes", env.set_byte_array_region(&jbytes, 0, data.iter().map(|b| *b as i8).collect::<Vec<i8>>().as_slice()));
+        j!(
+            "write",
+            env.call_method(&stream, "write", "([B)V", &[JValue::Object(&jbytes)])
+        );
+        let _ = env.call_method(&stream, "flush", "()V", &[]);
+        let closed = env.call_method(&stream, "close", "()V", &[]);
+        if let Err(e) = closed {
+            let _ = env.exception_clear();
+            return Err(format!("JNI[close]: {}", e));
+        }
+        Ok(uri)
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (uri, text);
+        Err("仅 Android 支持 content URI 写入".into())
+    }
+}
+
 // Android 系统分享面板：tauri-plugin-share 的 IPC 层未发布（命令被注释），
 // 这里直接经 Rust 侧 ShareExt 驱动其 Kotlin 实现
 #[tauri::command]
@@ -271,6 +351,7 @@ pub fn run() {
             os_platform,
             set_status_bar_icons,
             read_content_file,
+            write_content_file,
             load_data,
             save_data,
             write_file,

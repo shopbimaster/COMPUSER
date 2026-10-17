@@ -294,8 +294,8 @@ function buildTapBlock(col, axis, day, start, step, g, itemHeight) {
   clearTapSelect();
   const el = document.createElement("div");
   el.className = "course-block tap-select";
-  const r0 = axis.rows[start - 1];
   const place = (st, sp) => {
+    const r0 = axis.rows[st - 1];
     const r1 = axis.rows[Math.min(st + sp - 1, axis.rows.length) - 1];
     el.style.top = r0.y0 + "px";
     el.style.height = r1.y1 - r0.y0 + "px";
@@ -306,12 +306,17 @@ function buildTapBlock(col, axis, day, start, step, g, itemHeight) {
   el.innerHTML = '<span class="tap-plus">＋</span>';
 
   let dragY = 0;
+  let dragStart = start;
   let dragStep = step;
+  let dragFromTop = false; // 触点在块上半 → 沿起始节伸缩；下半 → 沿末节伸缩
   el.addEventListener(
     "touchstart",
     (ev) => {
       dragY = ev.touches[0].clientY;
+      dragStart = tapSel ? tapSel.start : start;
       dragStep = tapSel ? tapSel.step : step;
+      const r = el.getBoundingClientRect();
+      dragFromTop = dragY - r.top < r.height / 2;
     },
     { passive: true },
   );
@@ -322,16 +327,24 @@ function buildTapBlock(col, axis, day, start, step, g, itemHeight) {
       if (!tapSel) return;
       const per =
         axis.rows.length > 1 ? axis.rows[1].y0 - axis.rows[0].y0 : itemHeight;
-      const step2 = Math.max(
-        1,
-        Math.min(
-          axis.rows.length - start + 1,
-          dragStep + Math.round((ev.touches[0].clientY - dragY) / per),
-        ),
-      );
-      if (step2 !== tapSel.step) {
-        tapSel.step = step2;
-        place(start, step2);
+      const delta = Math.round((ev.touches[0].clientY - dragY) / per);
+      let s2, st2;
+      if (dragFromTop) {
+        // 上半拖动：改起始节（向上扩展/向下收缩），末节不变
+        s2 = Math.max(1, Math.min(dragStart + dragStep - 1, dragStart - delta));
+        st2 = dragStart + dragStep - s2;
+      } else {
+        // 下半拖动：改节数（向下扩展/向上收缩），起始节不变
+        st2 = Math.max(
+          1,
+          Math.min(axis.rows.length - dragStart + 1, dragStep + delta),
+        );
+        s2 = dragStart;
+      }
+      if (s2 !== tapSel.start || st2 !== tapSel.step) {
+        tapSel.start = s2;
+        tapSel.step = st2;
+        place(s2, st2);
       }
     },
     { passive: false },
@@ -465,9 +478,15 @@ function renderInto(gridEl, week, opts = {}) {
     if (main) {
       if (Ports.platform === "android") {
         // 手机端单点加课：点击空位出现粉色选中块（加号居中），
-        // 选中后上下拖动伸缩节数，再点选中块进入新建课程（时间已按选中区域预填）
+        // 选中后上下拖动调整时段（从块上半拖向上扩展、下半拖向下扩展），
+        // 再点选中块进入新建课程（时间已按选中区域预填）。
+        // 已有选中时点击其他位置：第一次仅取消选中，再点才在新位置选课
         col.addEventListener("click", (ev) => {
           ev.stopPropagation();
+          if (tapSel) {
+            clearTapSelect();
+            return;
+          }
           const rect = col.getBoundingClientRect();
           const secIdx = hitSection(ev.clientY - rect.top, axis, gapPx);
           buildTapBlock(col, axis, d, secIdx + 1, 1, g, s.itemHeight);
@@ -587,7 +606,15 @@ function buildCourseBlock(e, isCurrent, axis, gap) {
 
   el.title =
     `${c.name} ${sl.room ? "@" + sl.room : ""} ${sl.teach ? sl.teach + " 老师" : ""}`.trim();
-  el.addEventListener("click", () => openCourseModal("view", c, sl));
+  el.addEventListener("click", (ev) => {
+    // 手机端选中加课状态下点课程：仅取消选中，不打开详情
+    if (tapSel) {
+      ev.stopPropagation();
+      clearTapSelect();
+      return;
+    }
+    openCourseModal("view", c, sl);
+  });
   return el;
 }
 
@@ -1640,11 +1667,12 @@ function saveSettings() {
   const oldTermStart = sch.settings.termStart;
   sch.name = $("s_scheduleName").value.trim() || sch.name;
   const raw = collectSettings();
-  // 上课时间顺序检查：下课须晚于上课；下节课开始不得早于上节课结束
+  // 上课时间顺序检查：下课不得早于上课（相等允许——上调上课时间时已自动对齐下课）；
+  // 下节课开始不得早于上节课结束
   for (let i = 0; i < raw.classNum; i++) {
     const t = raw.times[i];
-    if (t.end <= t.start) {
-      showToast(`第 ${i + 1} 节的下课时间须晚于上课时间`);
+    if (t.end < t.start) {
+      showToast(`第 ${i + 1} 节的下课时间不能早于上课时间`);
       return;
     }
     if (i > 0 && t.start < raw.times[i - 1].end) {
@@ -1774,37 +1802,48 @@ async function doExportAction(act) {
   const sch = currentSchedule();
   const base = fileNameSafe(sch.name);
   let where = null;
-  if (act === "share") {
-    // 分享当前课表 → 选择分享方式（口令 / JSON / CSV / ICS）
-    openModal("shareChoiceModal");
+  try {
+    if (act === "share") {
+      // 分享当前课表 → 选择分享方式（口令 / JSON / CSV / ICS）
+      openModal("shareChoiceModal");
+      return;
+    }
+    if (act === "backup-all") {
+      where = await Ports.share.send(
+        Bk.serialize(state),
+        `${BRAND.EXPORT_PREFIX}-backup-${dateStamp()}.json`,
+      );
+    } else if (act === "share-json") {
+      where = await Ports.share.send(
+        Bk.serializeShare(sch),
+        `${BRAND.EXPORT_PREFIX}-share-${base}.json`,
+      );
+    } else if (act === "share-csv") {
+      where = await Ports.share.send(
+        Csv.toCsv(sch),
+        `${BRAND.EXPORT_PREFIX}-${base}-${dateStamp()}.csv`,
+      );
+    } else if (act === "share-ics") {
+      where = await Ports.share.send(
+        Ics.toIcs(sch),
+        `${BRAND.EXPORT_PREFIX}-${base}-${dateStamp()}.ics`,
+      );
+    } else if (act === "share-qr") {
+      closeModal("shareChoiceModal");
+      await openQrModal();
+      return;
+    }
+  } catch (e) {
+    // 保存失败必须给出详细报错（与导入诊断同级），不静默吞掉
+    showToast(`保存失败：${e?.message || String(e)}`, 8000);
     return;
   }
-  if (act === "backup-all") {
-    where = await Ports.share.send(
-      Bk.serialize(state),
-      `${BRAND.EXPORT_PREFIX}-backup-${dateStamp()}.json`,
-    );
-  } else if (act === "share-json") {
-    where = await Ports.share.send(
-      Bk.serializeShare(sch),
-      `${BRAND.EXPORT_PREFIX}-share-${base}.json`,
-    );
-  } else if (act === "share-csv") {
-    where = await Ports.share.send(
-      Csv.toCsv(sch),
-      `${BRAND.EXPORT_PREFIX}-${base}-${dateStamp()}.csv`,
-    );
-  } else if (act === "share-ics") {
-    where = await Ports.share.send(
-      Ics.toIcs(sch),
-      `${BRAND.EXPORT_PREFIX}-${base}-${dateStamp()}.ics`,
-    );
-  } else if (act === "share-qr") {
-    closeModal("shareChoiceModal");
-    await openQrModal();
-    return;
-  }
-  if (where) showToast(`已导出到 ${where}`);
+  if (!where) return;
+  // Android 另存返回 content:// URI，展示为可读的文件名（解码末段）
+  const whereText = where.startsWith("content://")
+    ? `「${decodeURIComponent(where.split("/").pop() || "所选位置")}」`
+    : where;
+  showToast(`已保存到 ${whereText}`, 4000);
 }
 
 async function openQrModal() {
@@ -2272,11 +2311,21 @@ function bindEvents() {
   };
   $("btnSaveShareFile").onclick = async () => {
     const sch = currentSchedule();
-    const where = await Ports.share.send(
-      Bk.serializeShare(sch),
-      `wakeup-share-${fileNameSafe(sch.name)}.json`,
-    );
-    if (where) showToast(`已导出到 ${where}`);
+    let where = null;
+    try {
+      where = await Ports.share.send(
+        Bk.serializeShare(sch),
+        `wakeup-share-${fileNameSafe(sch.name)}.json`,
+      );
+    } catch (e) {
+      showToast(`保存失败：${e?.message || String(e)}`, 8000);
+      return;
+    }
+    if (!where) return;
+    const whereText = where.startsWith("content://")
+      ? `「${decodeURIComponent(where.split("/").pop() || "所选位置")}」`
+      : where;
+    showToast(`已保存到 ${whereText}`, 4000);
   };
   $("btnImportCode").onclick = async () => {
     const code = $("codeInput").value.trim();
@@ -2596,14 +2645,21 @@ function bindEvents() {
     { passive: false },
   );
 
-  // 时间表编辑：统一时长模式下改上课时间自动算下课时间
+  // 时间表编辑：统一时长模式下改上课时间自动算下课时间；
+  // 自定义模式下下课早于上课则自动对齐到上课时间（不报错）
   $("timeTable").addEventListener("change", (e) => {
     const inp = e.target;
     if (inp.tagName !== "INPUT" || !inp.dataset.ti) return;
-    if ($("s_sameLen").checked && inp.dataset.field === "start") {
-      const len = Number($("s_lessonLen").value) || 45;
-      const endInp = inp.parentElement.querySelector('input[data-field="end"]');
-      if (endInp && inp.value) endInp.value = addMinutes(inp.value, len);
+    const row = inp.closest(".time-row");
+    const endInp = row?.querySelector('input[data-field="end"]');
+    if (!endInp || !inp.value) return;
+    if (inp.dataset.field === "start") {
+      if ($("s_sameLen").checked) {
+        const len = Number($("s_lessonLen").value) || 45;
+        endInp.value = addMinutes(inp.value, len);
+      } else if (endInp.value && endInp.value < inp.value) {
+        endInp.value = inp.value;
+      }
     }
   });
 

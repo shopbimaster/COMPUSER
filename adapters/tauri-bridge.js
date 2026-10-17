@@ -43,21 +43,22 @@
       save: async (text) => { await invoke('save_data', { text: String(text) }); }
     },
     share: {
-      // 发送：Android 分享面板 / 桌面另存为；返回展示用路径或 null（取消）
+      // 发送：Android 调系统「另存为」窗口直接保存 / 桌面另存为；返回展示用路径或 null（取消）
       send: async (text, defaultName) => {
         const name = defaultName || 'campuser-export.txt';
+        const target = await invoke('plugin:dialog|save', { options: { defaultPath: name } });
+        if (!target) return null;
         if (ports.platform === 'android') {
-          const path = await invoke('write_temp_file', { name, text: String(text) });
-          // 系统分享面板（含「保存到文件」）关闭回应用时无法回调，
-          // 由 MainActivity onResume 派发的 resume 事件给出反馈
-          window.__campuserSharePending = true;
-          await invoke('share_file_android', { path, mime: mimeOf(name) });
-          return `（已唤起分享：${name}）`;
+          // content:// URI 须走 ContentResolver（std::fs 写不了），失败带步骤名详细报错
+          try {
+            await invoke('write_content_file', { uri: target, text: String(text) });
+          } catch (e) {
+            throw new Error('保存文件失败：' + (e?.message || e));
+          }
+          return target;
         }
-        const path = await invoke('plugin:dialog|save', { options: { defaultPath: name } });
-        if (!path) return null;
-        await invoke('write_file', { path, text: String(text) });
-        return path;
+        await invoke('write_file', { path: target, text: String(text) });
+        return target;
       },
       // 接收：选择文件并读文本；返回 {name,text} | {name,error,detail} | null（取消）
       // detail 为逐步诊断信息（真机排障用）
