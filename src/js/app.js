@@ -289,13 +289,12 @@ function clearTapSelect() {
 }
 
 // 在空位放置/更新粉色选中块：再次点按选中块进入新建课程（时间按选中区域预填），
-// 选中块上下滑动伸缩节数：起始节固定，下滑延长、上滑缩短（加号始终居中）
+// 选中块滑动伸缩：上滑 = 顶边向上延长，下滑 = 底边向下延长（边缘跟随手指，
+// 反向滑动可缩回；一次触摸拖一个边缘，由首个滑动方向决定拖哪个边缘）
 function buildTapBlock(col, axis, day, start, step, g, itemHeight) {
   clearTapSelect();
   const el = document.createElement("div");
   el.className = "course-block tap-select";
-  // 加号大小粗细随格子内文字大小缩放（course-block 字号即格子字号设置）
-  el.style.fontSize = currentSettings().courseTextSize + "px";
   const place = (st, sp) => {
     const r0 = axis.rows[st - 1];
     const r1 = axis.rows[Math.min(st + sp - 1, axis.rows.length) - 1];
@@ -308,12 +307,12 @@ function buildTapBlock(col, axis, day, start, step, g, itemHeight) {
   el.innerHTML = '<span class="tap-plus">＋</span>';
 
   let dragY = 0;
-  let dragStep = step;
+  let dragEdge = null; // 'top' | 'bottom'，由首个有效滑动方向决定
   el.addEventListener(
     "touchstart",
     (ev) => {
       dragY = ev.touches[0].clientY;
-      dragStep = tapSel ? tapSel.step : step;
+      dragEdge = null;
     },
     { passive: true },
   );
@@ -322,19 +321,35 @@ function buildTapBlock(col, axis, day, start, step, g, itemHeight) {
     (ev) => {
       ev.preventDefault(); // 伸缩期间不滚动页面
       if (!tapSel) return;
+      const y = ev.touches[0].clientY;
       const per =
         axis.rows.length > 1 ? axis.rows[1].y0 - axis.rows[0].y0 : itemHeight;
-      const st2 = Math.max(
-        1,
-        Math.min(
-          axis.rows.length - start + 1,
-          dragStep + Math.round((ev.touches[0].clientY - dragY) / per),
-        ),
-      );
-      if (st2 !== tapSel.step) {
-        tapSel.step = st2;
-        place(start, st2);
+      const delta = Math.round((y - dragY) / per);
+      if (!delta) return;
+      if (!dragEdge) dragEdge = delta > 0 ? "bottom" : "top";
+      if (dragEdge === "bottom") {
+        // 底边跟手：下滑延长、上滑缩短，起始节不变
+        const st2 = Math.max(
+          1,
+          Math.min(axis.rows.length - tapSel.start + 1, tapSel.step + delta),
+        );
+        if (st2 !== tapSel.step) {
+          tapSel.step = st2;
+          place(tapSel.start, st2);
+        }
+      } else {
+        // 顶边跟手：上滑延长、下滑缩短，末节不变
+        const s2 = Math.max(
+          1,
+          Math.min(tapSel.start + delta, tapSel.start + tapSel.step - 1),
+        );
+        if (s2 !== tapSel.start) {
+          tapSel.step = tapSel.start + tapSel.step - s2;
+          tapSel.start = s2;
+          place(s2, tapSel.step);
+        }
       }
+      dragY = y; // 基准跟随手指，连续滑动平滑累计
     },
     { passive: false },
   );
