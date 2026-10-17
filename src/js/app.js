@@ -289,11 +289,13 @@ function clearTapSelect() {
 }
 
 // 在空位放置/更新粉色选中块：再次点按选中块进入新建课程（时间按选中区域预填），
-// 选中块上上下拖动伸缩节数（加号始终居中）
+// 选中块上下滑动伸缩节数：起始节固定，下滑延长、上滑缩短（加号始终居中）
 function buildTapBlock(col, axis, day, start, step, g, itemHeight) {
   clearTapSelect();
   const el = document.createElement("div");
   el.className = "course-block tap-select";
+  // 加号大小粗细随格子内文字大小缩放（course-block 字号即格子字号设置）
+  el.style.fontSize = currentSettings().courseTextSize + "px";
   const place = (st, sp) => {
     const r0 = axis.rows[st - 1];
     const r1 = axis.rows[Math.min(st + sp - 1, axis.rows.length) - 1];
@@ -306,17 +308,12 @@ function buildTapBlock(col, axis, day, start, step, g, itemHeight) {
   el.innerHTML = '<span class="tap-plus">＋</span>';
 
   let dragY = 0;
-  let dragStart = start;
   let dragStep = step;
-  let dragFromTop = false; // 触点在块上半 → 沿起始节伸缩；下半 → 沿末节伸缩
   el.addEventListener(
     "touchstart",
     (ev) => {
       dragY = ev.touches[0].clientY;
-      dragStart = tapSel ? tapSel.start : start;
       dragStep = tapSel ? tapSel.step : step;
-      const r = el.getBoundingClientRect();
-      dragFromTop = dragY - r.top < r.height / 2;
     },
     { passive: true },
   );
@@ -327,24 +324,16 @@ function buildTapBlock(col, axis, day, start, step, g, itemHeight) {
       if (!tapSel) return;
       const per =
         axis.rows.length > 1 ? axis.rows[1].y0 - axis.rows[0].y0 : itemHeight;
-      const delta = Math.round((ev.touches[0].clientY - dragY) / per);
-      let s2, st2;
-      if (dragFromTop) {
-        // 上半拖动：改起始节（向上扩展/向下收缩），末节不变
-        s2 = Math.max(1, Math.min(dragStart + dragStep - 1, dragStart - delta));
-        st2 = dragStart + dragStep - s2;
-      } else {
-        // 下半拖动：改节数（向下扩展/向上收缩），起始节不变
-        st2 = Math.max(
-          1,
-          Math.min(axis.rows.length - dragStart + 1, dragStep + delta),
-        );
-        s2 = dragStart;
-      }
-      if (s2 !== tapSel.start || st2 !== tapSel.step) {
-        tapSel.start = s2;
+      const st2 = Math.max(
+        1,
+        Math.min(
+          axis.rows.length - start + 1,
+          dragStep + Math.round((ev.touches[0].clientY - dragY) / per),
+        ),
+      );
+      if (st2 !== tapSel.step) {
         tapSel.step = st2;
-        place(s2, st2);
+        place(start, st2);
       }
     },
     { passive: false },

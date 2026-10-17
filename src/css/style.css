@@ -463,8 +463,8 @@ select option {
 }
 .course-block.tap-select .tap-plus {
   color: #fff;
-  font-size: 24px;
-  font-weight: 300;
+  font-size: 2em; /* em 绑定格子内文字大小：设置字号调整时加号同步缩放 */
+  font-weight: 600;
   line-height: 1;
   pointer-events: none;
 }
