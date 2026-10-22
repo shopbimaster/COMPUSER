@@ -138,13 +138,17 @@
 
     <!-- 课程表网格 -->
     <main class="schedule-wrap" id="scheduleWrap">
-      <!-- 周滑动轨道：cellA=当前周，cellB=滑动目标周（拖动跟手，松手过渡/弹回） -->
+      <!-- 周滑动轨道：静止时预渲染 当前页 + 左右相邻页 三页，滑动无缝切换；
+           松手后只保留新当前页并重渲相邻页（释放不相邻页） -->
       <div class="week-track" id="weekTrack">
+        <div class="week-cell" id="gridCellL">
+          <div class="grid" id="gridL"></div>
+        </div>
         <div class="week-cell" id="gridCellA">
           <div class="grid" id="grid"></div>
         </div>
-        <div class="week-cell" id="gridCellB">
-          <div class="grid" id="gridB"></div>
+        <div class="week-cell" id="gridCellR">
+          <div class="grid" id="gridR"></div>
         </div>
       </div>
       <div class="empty-tip" id="emptyTip" hidden>

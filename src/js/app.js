@@ -251,6 +251,7 @@ function dayOrder() {
 
 function render(reflowed) {
   renderInto($("grid"), viewWeek, { main: true });
+  renderNeighbors();
   // 内容撑出滚动条后列宽会收缩，首帧推导的 gap 可能偏大 1px：
   // 首帧渲染完成后实测列宽复核一次，仅重排一帧（reflowed 防循环）
   if (!reflowed) {
@@ -264,6 +265,19 @@ function render(reflowed) {
       if (g2 !== gapPx) render(true);
     });
   }
+}
+
+// 预渲染当前周的左右相邻页（三页轨道模型）：滑动直接跟手无缝切换；
+// 越界侧留空。在每次 render（含滑动 commit 后）调用 → 自动释放不相邻页
+function renderNeighbors() {
+  const s = currentSettings();
+  const gl = document.getElementById("gridL");
+  const gr = document.getElementById("gridR");
+  if (!gl || !gr) return;
+  if (viewWeek > 1) renderInto(gl, viewWeek - 1);
+  else gl.innerHTML = "";
+  if (viewWeek < s.totalWeeks) renderInto(gr, viewWeek + 1);
+  else gr.innerHTML = "";
 }
 
 // 命中时间轴各行（首尾各放宽一个边距容差），返回节次下标（0 基）
@@ -339,10 +353,7 @@ function buildTapBlock(col, axis, day, start, step, g, itemHeight) {
         }
       } else {
         // 顶边跟手：上滑延长、下滑缩短，末节不变
-        const s2 = Math.max(
-          1,
-          Math.min(tapSel.start + delta, tapSel.start + tapSel.step - 1),
-        );
+        const s2 = Math.max(1, Math.min(tapSel.start + delta, tapSel.start + tapSel.step - 1));
         if (s2 !== tapSel.start) {
           tapSel.step = tapSel.start + tapSel.step - s2;
           tapSel.start = s2;
@@ -367,7 +378,7 @@ function buildTapBlock(col, axis, day, start, step, g, itemHeight) {
   col.appendChild(el);
 }
 
-// 渲染任意周到任意网格容器（主 grid 或滑动轨道的目标页 gridB）
+// 渲染任意周到任意网格容器（主 grid 或三页滑动轨道的相邻页 gridL/gridR）
 function renderInto(gridEl, week, opts = {}) {
   const main = !!opts.main;
   const s = currentSettings();
@@ -611,9 +622,10 @@ function buildCourseBlock(e, isCurrent, axis, gap) {
   el.title =
     `${c.name} ${sl.room ? "@" + sl.room : ""} ${sl.teach ? sl.teach + " 老师" : ""}`.trim();
   el.addEventListener("click", (ev) => {
+    // 阻断冒泡到列的加课点击：点课程只走课程详情，关闭详情后不得在原处出现加课块
+    ev.stopPropagation();
     // 手机端选中加课状态下点课程：仅取消选中，不打开详情
     if (tapSel) {
-      ev.stopPropagation();
       clearTapSelect();
       return;
     }
@@ -2143,15 +2155,15 @@ function bindEvents() {
     setViewWeek(viewWeek + 1);
   };
 
-  // 触屏左右滑动切换周次（手机端隐藏切周箭头后的替代交互）：拖动跟手——
-  // 当前周页与目标周页并排各显示一部分（week-track 轨道），松手超阈值
-  // 滑入目标周、不足弹回；纵向滚动优先，越界周不启动
+  // 触屏左右滑动切换周次（手机端隐藏切周箭头后的替代交互）：三页轨道——
+  // 静止时当前页 + 左右相邻页均已预渲染，拖动直接跟手（无启动渲染卡顿），
+  // 中途反方向滑亦无缝（两侧页常备）；松手超阈值滑入目标周、不足弹回；
+  // 落定后 render() 重渲当前页与新的相邻页（释放不相邻页）；纵向滚动优先，
+  // 越界周不启动
   (() => {
     const wrap = document.querySelector(".schedule-wrap");
     const track = document.getElementById("weekTrack");
-    const cellA = document.getElementById("gridCellA");
-    const cellB = document.getElementById("gridCellB");
-    const gridB = document.getElementById("gridB");
+    const HOME = "translateX(-100%)"; // 静止位：当前页（中格）居中可见
     let sx = 0,
       sy = 0,
       st = 0;
@@ -2169,7 +2181,7 @@ function bindEvents() {
         swiping = false;
         dead = false;
         track.classList.remove("sliding");
-        track.style.transform = "translateX(0)";
+        track.style.transform = HOME;
       },
       { passive: true },
     );
@@ -2188,19 +2200,16 @@ function bindEvents() {
             dead = true;
             return;
           } // 纵向滚动优先
-          // 横向滑动启动：确定目标周并预渲染其页面
+          // 横向滑动启动：目标周页已随静止预渲染就位，无需即时渲染
           target = dx < 0 ? viewWeek + 1 : viewWeek - 1;
           if (target < 1 || target > currentSettings().totalWeeks) {
             dead = true;
             return;
           }
-          renderInto(gridB, target);
-          // 目标页摆到移动方向一侧：看下周（左滑）→ B 在 A 右侧（flex 自然排 w..2w）；
-          // 看上周（右滑）→ B 左移两屏到 -w..0（B 自然位在 A 后，移 100% 只会与 A 重叠）
-          cellB.style.transform = dx < 0 ? "" : "translateX(-200%)";
           swiping = true;
         }
-        track.style.transform = `translateX(${dx}px)`;
+        // 中途反悔换方向：两侧相邻页均已渲染，直接跟手反向即可，无穿帮
+        track.style.transform = `translateX(calc(-100% + ${dx}px))`;
       },
       { passive: true },
     );
@@ -2216,17 +2225,20 @@ function bindEvents() {
         const flick = Math.abs(dx) / dt > 0.45; // 快速甩动
         const commit = Math.abs(dx) > w * 0.25 || (flick && Math.abs(dx) > 40);
         track.classList.add("sliding");
-        track.style.transform = `translateX(${commit ? (dx < 0 ? -w : w) : 0}px)`;
+        track.style.transform = commit
+          ? dx < 0
+            ? "translateX(-200%)" // 左滑看右邻
+            : "translateX(0%)" // 右滑看左邻
+          : HOME;
         setTimeout(() => {
           if (commit) {
             // 目标周转正：主 grid 渲染目标周（此刻视口正显示其内容），再复位轨道
             viewWeek = target;
             updateWeekUI();
-            render();
+            render(); // 同时重渲新的左右邻 → 释放不相邻页
           }
-          cellB.style.transform = "";
           track.classList.remove("sliding");
-          track.style.transform = "translateX(0)";
+          track.style.transform = HOME; // 无动画瞬间归位（与目标页内容一致，视觉无缝）
         }, 240);
       },
       { passive: true },

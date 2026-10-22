@@ -267,10 +267,12 @@ select option {
 }
 
 /* ============ 周滑动轨道（手机端拖拽跟手切换周次） ============ */
+/* 三页并排（左邻/当前/右邻）：静止时平移一屏让当前页居中可见，
+   相邻页已预渲染 → 滑动零延迟无缝切换；松手后重渲相邻页并释放不相邻页 */
 .week-track {
   display: flex;
   width: 100%;
-  transform: translateX(0);
+  transform: translateX(-100%);
   will-change: transform;
 }
 .week-track.sliding {
