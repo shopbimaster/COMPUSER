@@ -2156,31 +2156,35 @@ function bindEvents() {
   };
 
   // 触屏左右滑动切换周次（手机端隐藏切周箭头后的替代交互）：三页轨道——
-  // 静止时当前页 + 左右相邻页均已预渲染，拖动直接跟手（无启动渲染卡顿），
-  // 中途反方向滑亦无缝（两侧页常备）；松手超阈值滑入目标周、不足弹回；
-  // 落定后 render() 重渲当前页与新的相邻页（释放不相邻页）；纵向滚动优先，
-  // 越界周不启动
+  // 静止时当前页 + 左右相邻页均已预渲染。滑动识别优先于点击：首个有效位移即
+  // 判方向并立即跟手（基准重置到识别点，识别前已滑距离不计入 → 无跳帧卡顿）；
+  // 中途反方向滑亦无缝（两侧页常备），commit 时按最终位移方向确定目标周。
+  // 抬手时位移过短判为点击（放行合成 click），拖动过则吞掉合成 click；
+  // 纵向滚动优先，越界周不启动
   (() => {
     const wrap = document.querySelector(".schedule-wrap");
     const track = document.getElementById("weekTrack");
     const HOME = "translateX(-100%)"; // 静止位：当前页（中格）居中可见
     let sx = 0,
       sy = 0,
+      sx0 = 0, // 最初触点：commit/点击的距离判定按总位移（识别前的滑动也计入）
       st = 0;
-    let swiping = false; // 已进入横向拖拽
-    let dead = false; // 本次触摸已判定为纵向滚动/越界
-    let target = 0;
+    let swiping = false; // 已进入横向拖拽（跟手基准 = sx）
+    let dead = false; // 本次触摸已判定为纵向滚动/越界/动画未完
 
     wrap.addEventListener(
       "touchstart",
       (e) => {
         if (e.touches.length !== 1) return;
-        sx = e.touches[0].clientX;
+        if (track.classList.contains("sliding")) {
+          dead = true; // 切换动画进行中：不打断（避免把动画中的页面瞬拉回原位）
+          return;
+        }
+        sx = sx0 = e.touches[0].clientX;
         sy = e.touches[0].clientY;
         st = Date.now();
         swiping = false;
         dead = false;
-        track.classList.remove("sliding");
         track.style.transform = HOME;
       },
       { passive: true },
@@ -2195,21 +2199,24 @@ function bindEvents() {
         const dx = x - sx;
         const dy = y - sy;
         if (!swiping) {
-          if (Math.abs(dx) < 14) return;
+          // 静默微动：位移过小不判向（避免点击抖动误入拖拽）
+          if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
           if (Math.abs(dy) > Math.abs(dx)) {
             dead = true;
             return;
           } // 纵向滚动优先
-          // 横向滑动启动：目标周页已随静止预渲染就位，无需即时渲染
-          target = dx < 0 ? viewWeek + 1 : viewWeek - 1;
-          if (target < 1 || target > currentSettings().totalWeeks) {
+          // 横向识别：基准重置到当前点（跟手从识别点起算，无跳帧）
+          const finalTarget = viewWeek + (dx < 0 ? 1 : -1);
+          if (finalTarget < 1 || finalTarget > currentSettings().totalWeeks) {
             dead = true;
             return;
           }
+          sx = x;
           swiping = true;
+          return;
         }
-        // 中途反悔换方向：两侧相邻页均已渲染，直接跟手反向即可，无穿帮
-        track.style.transform = `translateX(calc(-100% + ${dx}px))`;
+        // 待滑动状态：两侧相邻页均已预渲染，逐帧跟手；中途反悔换方向无缝
+        track.style.transform = `translateX(calc(-100% + ${x - sx}px))`;
       },
       { passive: true },
     );
@@ -2219,11 +2226,26 @@ function bindEvents() {
       (e) => {
         if (!swiping) return;
         swiping = false;
-        const dx = e.changedTouches[0].clientX - sx;
+        const ex = e.changedTouches[0].clientX;
+        const dxi = ex - sx; // 识别后位移（= 跟手位移量）
+        if (Math.abs(dxi) <= 10) {
+          // 识别后几乎没滑 → 判定为点击：弹回原位并放行合成 click
+          track.classList.add("sliding");
+          track.style.transform = HOME;
+          setTimeout(() => track.classList.remove("sliding"), 240);
+          return;
+        }
+        e.preventDefault(); // 拖动有效：吞掉合成 click，防止误触课程/加课
+        const dx = ex - sx0; // 总位移：commit 距离与方向按用户实际滑动总量
         const w = wrap.clientWidth;
         const dt = Math.max(1, Date.now() - st);
         const flick = Math.abs(dx) / dt > 0.45; // 快速甩动
-        const commit = Math.abs(dx) > w * 0.25 || (flick && Math.abs(dx) > 40);
+        let commit = Math.abs(dx) > w * 0.25 || (flick && Math.abs(dx) > 40);
+        // commit 按最终位移方向确定目标周（中途反悔换方向以终点为准）；越界则弹回
+        const dir = dx < 0 ? 1 : -1;
+        const finalTarget = viewWeek + dir;
+        if (commit && (finalTarget < 1 || finalTarget > currentSettings().totalWeeks))
+          commit = false;
         track.classList.add("sliding");
         track.style.transform = commit
           ? dx < 0
@@ -2233,7 +2255,7 @@ function bindEvents() {
         setTimeout(() => {
           if (commit) {
             // 目标周转正：主 grid 渲染目标周（此刻视口正显示其内容），再复位轨道
-            viewWeek = target;
+            viewWeek = finalTarget;
             updateWeekUI();
             render(); // 同时重渲新的左右邻 → 释放不相邻页
           }
@@ -2241,7 +2263,7 @@ function bindEvents() {
           track.style.transform = HOME; // 无动画瞬间归位（与目标页内容一致，视觉无缝）
         }, 240);
       },
-      { passive: true },
+      { passive: false },
     );
   })();
 
