@@ -1,6 +1,6 @@
 {
   "name": "campuser",
-  "version": "2.1.2",
+  "version": "2.2.0",
   "description": "CAMPUSER - 本地 · 无广告 · 数据完全本地",
   "main": "main.js",
   "scripts": {
@@ -19,7 +19,8 @@
     "@tauri-apps/cli": "^2.12.2",
     "@tauri-apps/plugin-dialog": "^2.8.2",
     "electron": "^33.4.11",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "jsdom": "^29.1.1"
   },
   "dependencies": {
     "qrcode-generator": "^2.0.4"

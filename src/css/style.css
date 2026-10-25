@@ -2002,3 +2002,67 @@ textarea {
     row-gap: 6px;
   }
 }
+
+/* ============ 调课（拖动 + 整日） ============ */
+/* 长按拖动中的课程块：抬升跟随手指 */
+.course-block.dragging {
+  opacity: 0.9;
+  z-index: 30;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  cursor: grabbing;
+  /* 拖动中禁用 transform 过渡：严格 1:1 跟手，释放落点判定即时精确 */
+  transition: filter 0.15s;
+}
+body.course-drag-active {
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* 表头点击弹出的整日调课入口（类似回到本周的下拉按钮） */
+.day-header {
+  cursor: pointer;
+}
+.day-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  background: var(--card, #fff);
+  border: 1px solid rgba(128, 128, 128, 0.25);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+  padding: 4px;
+  white-space: nowrap;
+}
+.day-menu button {
+  border: none;
+  background: var(--today, #e8939f);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+/* 整日调课弹窗表单：标题左对齐加冒号，选择器换行居中 */
+.adj-mode-row {
+  display: flex;
+  gap: 18px;
+  margin-bottom: 12px;
+}
+.adj-group {
+  margin-bottom: 12px;
+}
+.adj-title {
+  font-weight: 600;
+  text-align: left;
+  margin-bottom: 6px;
+}
+.adj-picks {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+.adj-picks select {
+  min-width: 120px;
+}

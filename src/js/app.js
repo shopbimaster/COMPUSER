@@ -70,6 +70,7 @@ const M = CampuserModel,
   C = CampuserConflict,
   Mrg = CampuserMerge,
   Bk = CampuserBackupCodec;
+const Adj = window.CampuserAdjust; // 调课数据变换
 const Share = CampuserShareCodec,
   Csv = CampuserCsvCodec,
   Ics = CampuserIcsCodec;
@@ -436,6 +437,11 @@ function renderInto(gridEl, week, opts = {}) {
     h.className =
       "day-header" + (fmtDate(date) === todayStr ? " is-today" : "");
     h.innerHTML = `<span class="day-name">${DAY_ABBR[d]}</span><span class="day-date">${date.getDate()}</span>`;
+    // 点击表头：弹出「整日调课」入口
+    h.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      openDayAdjustMenu(h, d, fmtDate(date));
+    });
     gridEl.appendChild(h);
   }
 
@@ -622,8 +628,12 @@ function buildCourseBlock(e, isCurrent, axis, gap) {
   el.title =
     `${c.name} ${sl.room ? "@" + sl.room : ""} ${sl.teach ? sl.teach + " 老师" : ""}`.trim();
   el.addEventListener("click", (ev) => {
-    // 阻断冒泡到列的加课点击：点课程只走课程详情，关闭详情后不得在原处出现加课块
     ev.stopPropagation();
+    // 拖动调课结束后的合成 click 不打开详情
+    if (suppressNextClick) {
+      suppressNextClick = false;
+      return;
+    }
     // 手机端选中加课状态下点课程：仅取消选中，不打开详情
     if (tapSel) {
       clearTapSelect();
@@ -631,10 +641,134 @@ function buildCourseBlock(e, isCurrent, axis, gap) {
     }
     openCourseModal("view", c, sl);
   });
+  // 长按进入拖动调课（仅当前周实课；下周叠加块与自定义时间块不参与）
+  if (isCurrent && !sl.customTime) attachCourseDrag(el, c, sl);
   return el;
 }
 
-// ---------- 顶栏与周数面板 ----------
+// ---------- 课程长按拖动调课 ----------
+const DRAG_PRESS_MS = 420; // 长按进入拖动的判定时长
+const DRAG_JITTER = 10; // 按下后的抖动容差：位移超此值取消长按（放行滚动）
+
+function attachCourseDrag(el, c, sl) {
+  let pressTimer = null;
+  let pressX = 0;
+  let pressY = 0;
+  let drag = null; // {x0, y0} 进入拖动时的识别点（视口坐标）
+
+  const cancelPress = () => {
+    if (pressTimer) {
+      clearTimeout(pressTimer);
+      pressTimer = null;
+    }
+  };
+
+  const beginDrag = (x, y) => {
+    if (tapSel) clearTapSelect(); // 与加课选中互斥
+    drag = { x0: x, y0: y };
+    el.classList.add("dragging");
+    document.body.classList.add("course-drag-active"); // 拖动中禁文本选择
+  };
+
+  const updateDrag = (x, y) => {
+    el.style.transform = `translate(${x - drag.x0}px, ${y - drag.y0}px)`;
+  };
+
+  const finishDrag = (x, y) => {
+    // 释放点 = 拖动中的块中心：必须先取 rect 再复位 transform，否则读回原位
+    const rect = el.getBoundingClientRect();
+    el.classList.remove("dragging");
+    document.body.classList.remove("course-drag-active");
+    el.style.transform = "";
+    drag = null;
+    suppressNextClick = true; // 拖动后的合成 click 不打开详情
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    let colEl = null;
+    for (const cEl of document.querySelectorAll("#grid .day-col")) {
+      const r = cEl.getBoundingClientRect();
+      if (cx >= r.left && cx <= r.right) {
+        colEl = cEl;
+        break;
+      }
+    }
+    if (!colEl) return; // 拖出课表区域 → 取消（块已回弹原位）
+    const s = currentSettings();
+    const axis = buildTimeAxis(s, gapPx);
+    const colRect = colEl.getBoundingClientRect();
+    const toStart = Math.min(s.classNum, hitSection(cy - colRect.top, axis, gapPx) + 1);
+    openAdjustMoveModal(c, sl, Number(colEl.dataset.day), toStart);
+  };
+
+  const pressMove = (x, y) => {
+    if (drag) {
+      updateDrag(x, y);
+      return;
+    }
+    // 未进入拖动的移动超容差 → 取消长按（放行滚动/周切换）
+    if (Math.abs(x - pressX) > DRAG_JITTER || Math.abs(y - pressY) > DRAG_JITTER)
+      cancelPress();
+  };
+
+  el.addEventListener(
+    "touchstart",
+    (e) => {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      cancelPress();
+      pressX = t.clientX;
+      pressY = t.clientY;
+      pressTimer = setTimeout(() => beginDrag(pressX, pressY), DRAG_PRESS_MS);
+    },
+    { passive: true },
+  );
+  el.addEventListener(
+    "touchmove",
+    (e) => {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      if (drag) {
+        e.preventDefault(); // 拖动中禁止页面滚动
+        updateDrag(t.clientX, t.clientY);
+        return;
+      }
+      pressMove(t.clientX, t.clientY);
+    },
+    { passive: false },
+  );
+  el.addEventListener(
+    "touchend",
+    (e) => {
+      cancelPress();
+      if (!drag) return;
+      const t = e.changedTouches[0];
+      const x = t ? t.clientX : pressX;
+      const y = t ? t.clientY : pressY;
+      drag = null;
+      finishDrag(x, y);
+    },
+    { passive: true },
+  );
+  el.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    cancelPress();
+    pressX = e.clientX;
+    pressY = e.clientY;
+    pressTimer = setTimeout(() => beginDrag(pressX, pressY), DRAG_PRESS_MS);
+  });
+  const onMouseMove = (e) => pressMove(e.clientX, e.clientY);
+  const onMouseUp = (e) => {
+    cancelPress();
+    if (!drag) return;
+    drag = null;
+    finishDrag(e.clientX, e.clientY);
+  };
+  el.addEventListener("mousemove", onMouseMove);
+  el.addEventListener("mouseup", onMouseUp);
+  el.addEventListener("mouseleave", () => {
+    if (!drag) cancelPress();
+  });
+}// ---------- 顶栏与周数面板 ----------
 function weekStatusText() {
   const s = currentSettings();
   const cur = calcCurrentWeek();
@@ -1844,11 +1978,7 @@ async function doExportAction(act) {
         Ics.toIcs(sch),
         `${BRAND.EXPORT_PREFIX}-${base}-${dateStamp()}.ics`,
       );
-    } else if (act === "share-qr") {
-      closeModal("shareChoiceModal");
-      await openQrModal();
-      return;
-    }
+}
   } catch (e) {
     // 保存失败必须给出详细报错（与导入诊断同级），不静默吞掉
     showToast(`保存失败：${e?.message || String(e)}`, 8000);
@@ -1862,99 +1992,8 @@ async function doExportAction(act) {
   showToast(`已保存到 ${whereText}`, 4000);
 }
 
-async function openQrModal() {
-  const r = await Share.encodeShare(currentSchedule());
-  if (r.error) {
-    showToast(r.error);
-    return;
-  }
-  $("shareCode").value = r.code;
-  const box = $("qrBox");
-  box.innerHTML = "";
-  if (typeof qrcode === "undefined") {
-    box.innerHTML =
-      '<div class="qr-too-big">二维码组件未加载（vendor/qrcode-generator.js）<br>仍可使用下方口令或文件方式分享</div>';
-    $("qrTip").textContent = "";
-  } else {
-    try {
-      const qr = qrcode(0, "M");
-      qr.addData(r.code);
-      qr.make();
-      box.innerHTML = qr.createSvgTag({
-        cellSize: 4,
-        margin: 2,
-        scalable: true,
-      });
-      $("qrTip").textContent =
-        "对方扫码后按提示操作，或将口令粘贴到「导入 ▾ → 从文本口令导入」";
-    } catch (e) {
-      box.innerHTML =
-        '<div class="qr-too-big">口令过长，无法生成二维码<br>请使用下方口令或文件方式分享</div>';
-      $("qrTip").textContent = "";
-    }
-  }
-  openModal("qrModal");
-}
-
-let pendingImportState = null;
-let pendingIcsImport = null; // ICS 导入：待用户选择匹配日程的存储格式
-
-// ---------- 摄像头扫码（BarcodeDetector + getUserMedia） ----------
-let scanStream = null,
-  scanTimer = null;
-
-function stopScan() {
-  if (scanTimer) {
-    clearInterval(scanTimer);
-    scanTimer = null;
-  }
-  if (scanStream) {
-    scanStream.getTracks().forEach((t) => t.stop());
-    scanStream = null;
-  }
-}
-
-async function startScan() {
-  if (!("BarcodeDetector" in window)) {
-    showToast("当前环境不支持扫码识别，请手动粘贴口令");
-    return;
-  }
-  try {
-    scanStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment" },
-    });
-  } catch (e) {
-    showToast("无法访问摄像头，请检查权限或手动粘贴口令");
-    return;
-  }
-  const video = $("scanVideo");
-  video.srcObject = scanStream;
-  $("scanHint").textContent = "将二维码对准取景框";
-  openModal("scanModal");
-  const detector = new window.BarcodeDetector();
-  scanTimer = setInterval(async () => {
-    if (video.readyState < 2) return;
-    try {
-      const codes = await detector.detect(video);
-      const hit = codes.find((c) => /^WU[01]:/.test(c.rawValue || ""));
-      if (hit) {
-        $("codeInput").value = hit.rawValue;
-        stopScan();
-        closeModal("scanModal");
-        showToast("已识别口令，请点击导入");
-      }
-    } catch (e) {
-      /* 单帧失败忽略 */
-    }
-  }, 350);
-}
-
 async function doImportAction(act) {
-  if (act === "code") {
-    $("codeInput").value = "";
-    openModal("codeImportModal");
-    return;
-  }
+
   const r = await Ports.share.receive();
   if (!r) return;
   if (r.error) {
@@ -1965,6 +2004,150 @@ async function doImportAction(act) {
   await handleImportText(r.text, r.name);
 }
 
+// ---------- 拖动调课确认窗 ----------
+let pendingAdjust = null; // { course, slot, toDay, toStart }
+
+const DAY_CN = { 1: "周一", 2: "周二", 3: "周三", 4: "周四", 5: "周五", 6: "周六", 7: "周日" };
+
+function openAdjustMoveModal(course, slot, toDay, toStart) {
+  const endSec = slot.start + slot.step - 1;
+  pendingAdjust = { course, slot, toDay, toStart };
+  $("adjustMoveDetail").innerHTML =
+    `将「<b>${escapeHtml(course.name)}</b>」<br>` +
+    `从 ${DAY_CN[slot.day] || slot.day} 第 ${slot.start}-${endSec} 节（第 ${slot.startWeek}~${slot.endWeek} 周）<br>` +
+    `调到 ${DAY_CN[toDay] || toDay} 第 ${toStart}-${toStart + slot.step - 1} 节`;
+  openModal("adjustMoveModal");
+}
+
+function applyAdjustMove(mode) {
+  if (!pendingAdjust) return;
+  const { course, slot, toDay, toStart } = pendingAdjust;
+  const idx = course.timeSlots.indexOf(slot);
+  pendingAdjust = null;
+  closeModal("adjustMoveModal");
+  if (idx < 0) return;
+  // 释放回原位：不做任何数据变更（避免「只调这一节」把原段拆出冗余单周段）
+  if (toDay === slot.day && toStart === slot.start) {
+    showToast("位置未变化");
+    return;
+  }
+  if (mode === "one") Adj.moveSlotOneWeek(course, idx, viewWeek, toDay, toStart, slot.step);
+  else Adj.moveSlotAll(course, idx, toDay, toStart, slot.step);
+  touchSchedule();
+  persist().then(() => render());
+  showToast(mode === "one" ? `已调整第 ${viewWeek} 周的该节课程` : "已调整该时间段的所有周次");
+}
+
+// ---------- 整日调课 ----------
+let adjustDayFrom = null; // 点击日期轴带入的日期 'YYYY-MM-DD'
+
+// 表头点击 → 下方弹出「整日调课」入口按钮
+function openDayAdjustMenu(headerEl, day, dateIso) {
+  document.querySelectorAll(".day-menu").forEach((m) => m.remove());
+  const menu = document.createElement("div");
+  menu.className = "day-menu";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.textContent = "整日调课…";
+  btn.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    menu.remove();
+    openAdjustDayModal(day, dateIso);
+  });
+  menu.appendChild(btn);
+  headerEl.appendChild(menu);
+}
+
+// 填充一个日期下拉（按周 optgroup 分组，选项 = MM-DD 周X，值 = ISO 日期）
+function fillAdjustDateSelect(sel) {
+  const s = currentSettings();
+  sel.innerHTML = "";
+  for (let w = 1; w <= s.totalWeeks; w++) {
+    const og = document.createElement("optgroup");
+    og.label = `第${w}周`;
+    for (let d = 1; d <= 7; d++) {
+      const iso = Adj.dateOfWeekDay(s.termStart, w, d);
+      og.appendChild(new Option(`${iso.slice(5)} ${DAY_CN[d]}`, iso));
+    }
+    sel.appendChild(og);
+  }
+}
+
+function openAdjustDayModal(day, dateIso) {
+  const s = currentSettings();
+  adjustDayFrom = dateIso;
+  fillAdjustDateSelect($("adjFromDate"));
+  fillAdjustDateSelect($("adjToDate"));
+  const weekSel = (id) => {
+    const el = $(id);
+    el.innerHTML = "";
+    for (let w = 1; w <= s.totalWeeks; w++) el.appendChild(new Option(`第${w}周`, w));
+  };
+  weekSel("adjFromWeek");
+  weekSel("adjToWeek");
+  const daySel = (id) => {
+    const el = $(id);
+    el.innerHTML = "";
+    for (let d = 1; d <= 7; d++) el.appendChild(new Option(DAY_CN[d], d));
+  };
+  daySel("adjFromDay");
+  daySel("adjToDay");
+  // 模式复位为按日期，起点预选点击的日期
+  document.querySelector('input[name="adjMode"][value="date"]').checked = true;
+  document.querySelector('input[name="adjMode"][value="week"]').checked = false;
+  $("adjFromDate").value = dateIso;
+  $("adjToDate").value = dateIso;
+  const syncVis = () => {
+    const byDate = document.querySelector('input[name="adjMode"]:checked').value === "date";
+    for (const id of ["adjFromDate", "adjToDate"]) $(id).hidden = !byDate;
+    for (const id of ["adjFromWeek", "adjFromDay", "adjToWeek", "adjToDay"]) $(id).hidden = byDate;
+  };
+  syncVis();
+  for (const r of document.querySelectorAll('input[name="adjMode"]'))
+    r.onchange = syncVis;
+  openModal("adjustDayModal");
+}
+
+function confirmAdjustDay() {
+  const s = currentSettings();
+  const byDate = document.querySelector('input[name="adjMode"]:checked').value === "date";
+  let fromW, fromD, toW, toD;
+  if (byDate) {
+    const f = Adj.weekDayOfDate(s.termStart, $("adjFromDate").value, s.totalWeeks);
+    const t = Adj.weekDayOfDate(s.termStart, $("adjToDate").value, s.totalWeeks);
+    if (!f || !t) {
+      showToast("所选日期超出课表范围");
+      return;
+    }
+    ({ w: fromW, d: fromD } = f);
+    ({ w: toW, d: toD } = t);
+  } else {
+    fromW = Number($("adjFromWeek").value);
+    fromD = Number($("adjFromDay").value);
+    toW = Number($("adjToWeek").value);
+    toD = Number($("adjToDay").value);
+  }
+  if (fromW === toW && fromD === toD) {
+    showToast("调课起点与目标相同");
+    return;
+  }
+  const courses = currentSchedule().courses;
+  const r = Adj.adjustWholeDay(courses, fromW, fromD, toW, toD);
+  if (!r.moved) {
+    showToast("起点当天没有课程，无需调整");
+    return;
+  }
+  closeModal("adjustDayModal");
+  touchSchedule();
+  persist().then(() => render());
+  const fromTxt = byDate
+    ? $("adjFromDate").value.slice(5)
+    : `第${fromW}周${DAY_CN[fromD]}`;
+  const toTxt = byDate
+    ? $("adjToDate").value.slice(5)
+    : `第${toW}周${DAY_CN[toD]}`;
+  showToast(`已将 ${fromTxt} 的 ${r.moved} 节课（${r.courses} 门）调整到 ${toTxt}`, 4000);
+}
 async function handleImportText(text, name) {
   // CSV → 课程导入当前课表
   if (/\.csv$/i.test(name || "")) {
@@ -2315,12 +2498,6 @@ function bindEvents() {
     if (!b) return;
     doExportAction("share-" + b.dataset.share);
   });
-  // 摄像头扫码入口
-  $("btnScanCode").onclick = () => startScan();
-  // 扫码弹窗关闭（含 Escape/遮罩）时停止摄像头
-  new MutationObserver(() => {
-    if ($("scanModal").hidden) stopScan();
-  }).observe($("scanModal"), { attributes: true, attributeFilter: ["hidden"] });
   $("importMenu").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-act]");
     if (!b) return;
@@ -2335,51 +2512,15 @@ function bindEvents() {
     }
   });
 
-  // QR / 口令 / 导入选择
-  $("btnCopyCode").onclick = async () => {
-    const code = $("shareCode").value;
-    if (!code) return;
-    try {
-      await navigator.clipboard.writeText(code);
-    } catch (e) {
-      $("shareCode").select();
-      document.execCommand("copy");
-    }
-    showToast("口令已复制");
+  // 拖动调课确认窗
+  $("btnAdjustCancel").onclick = () => {
+    pendingAdjust = null;
+    closeModal("adjustMoveModal");
   };
-  $("btnSaveShareFile").onclick = async () => {
-    const sch = currentSchedule();
-    let where = null;
-    try {
-      where = await Ports.share.send(
-        Bk.serializeShare(sch),
-        `wakeup-share-${fileNameSafe(sch.name)}.json`,
-      );
-    } catch (e) {
-      showToast(`保存失败：${e?.message || String(e)}`, 8000);
-      return;
-    }
-    if (!where) return;
-    const whereText = where.startsWith("content://")
-      ? `「${decodeURIComponent(where.split("/").pop() || "所选位置")}」`
-      : where;
-    showToast(`已保存到 ${whereText}`, 4000);
-  };
-  $("btnImportCode").onclick = async () => {
-    const code = $("codeInput").value.trim();
-    if (!code) {
-      showToast("请粘贴口令");
-      return;
-    }
-    const r = await Share.decodeShare(code);
-    if (r.error) {
-      showToast("导入失败：" + r.error);
-      return;
-    }
-    closeModal("codeImportModal");
-    importAsNewSchedules([r.schedule], true);
-  };
-  $("btnConfirmImport").onclick = confirmImportChoice;
+  $("btnAdjustOne").onclick = () => applyAdjustMove("one");
+  $("btnAdjustAll").onclick = () => applyAdjustMove("all");
+  // 整日调课
+  $("btnAdjustDay").onclick = confirmAdjustDay;  $("btnConfirmImport").onclick = confirmImportChoice;
   $("btnConfirmIcsFormat").onclick = confirmIcsFormat;
   // 导入设置统一询问：沿用当前设置（白名单覆盖 + 时间表深拷贝）或保留文件自带
   $("btnUseCurrentSettings").onclick = () => {
