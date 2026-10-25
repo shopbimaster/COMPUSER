@@ -2020,6 +2020,8 @@ body.course-drag-active {
 /* 表头点击弹出的整日调课入口（类似回到本周的下拉按钮） */
 .day-header {
   cursor: pointer;
+  /* .day-menu 绝对定位的锚点：缺失时包含块落到带 transform 的 weekTrack，菜单飞出视野 */
+  position: relative;
 }
 .day-menu {
   position: absolute;

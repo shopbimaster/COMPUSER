@@ -2510,6 +2510,10 @@ function bindEvents() {
         d.hidden = true;
       });
     }
+    // 点空白处收起整日调课入口（在菜单按钮上点则由其自身处理器处理）
+    if (!e.target.closest(".day-menu") && !e.target.closest(".day-header")) {
+      document.querySelectorAll(".day-menu").forEach((m) => m.remove());
+    }
   });
 
   // 拖动调课确认窗
