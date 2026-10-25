@@ -25,6 +25,12 @@
             </intent-filter>
         </activity>
 
+        <!-- 教务导入登录页（应用内 WebView，Cookie 与主应用共享） -->
+        <activity
+            android:name=".HubLoginActivity"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
+            android:exported="false" />
+
         <provider
           android:name="androidx.core.content.FileProvider"
           android:authorities="${applicationId}.fileprovider"

@@ -1971,7 +1971,8 @@ async function hubNext() {
     btn.dataset.busy = "1";
     try {
       if (!hubState.loginOpened) {
-        await Ports.hub.openLogin(HUB_BY_COURSE_URL);
+        const ok = await Ports.hub.openLogin(HUB_BY_COURSE_URL);
+        if (!ok) throw new Hub.HubError("无法打开教务登录页（设备不支持或被系统拦截）");
         hubState.loginOpened = true;
         $("hubLoginStatus").textContent =
           "状态：教务页已打开，请在其中完成登录（学号 + 密码），回到本窗口点击下方按钮";

@@ -376,20 +376,82 @@ async fn http_get(
     }
 }
 
-// 教务导入（Android 等 Tauri 壳）：开外部 URL WebView 窗口供用户登录教务
+// 教务导入：打开教务登录页
+// Android = 启动原生 HubLoginActivity（应用内 WebView，Cookie 与主应用共享；
+// wry 移动端不支持多窗口，WebviewWindow 方案在 Android 会失败）；
+// 桌面 = Tauri WebviewWindow 加载外部 URL
 #[tauri::command]
 async fn hub_open_login(app: tauri::AppHandle, url: String) -> Result<(), String> {
-    use tauri::{WebviewUrl, WebviewWindowBuilder};
-    if let Some(w) = app.get_webview_window("hubLogin") {
-        let _ = w.set_focus();
-        return Ok(());
+    #[cfg(target_os = "android")]
+    {
+        let _ = &app;
+        use jni::objects::{JObject, JValue};
+        let ac = ndk_context::android_context();
+        let (vm_ptr, ctx_ptr) = (ac.vm(), ac.context());
+        if vm_ptr.is_null() || ctx_ptr.is_null() {
+            return Err("no android context".into());
+        }
+        let vm = unsafe { jni::JavaVM::from_raw(vm_ptr.cast()) }.map_err(|e| e.to_string())?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        macro_rules! j {
+            ($step:expr, $res:expr) => {
+                match $res {
+                    Ok(v) => v,
+                    Err(e) => {
+                        let _ = env.exception_clear();
+                        return Err(format!("JNI[{}]: {}", $step, e));
+                    }
+                }
+            };
+        }
+        let context = unsafe { JObject::from_raw(ctx_ptr.cast()) };
+        let class = j!(
+            "find_class",
+            env.find_class("com/campuser/app/HubLoginActivity")
+        );
+        let intent = j!(
+            "new_intent",
+            env.new_object(
+                "android/content/Intent",
+                "(Landroid/content/Context;Ljava/lang/Class;)V",
+                &[JValue::Object(&context), JValue::Object(&class)]
+            )
+        );
+        let jurl = j!("new_string", env.new_string(&url));
+        j!(
+            "put_extra",
+            env.call_method(
+                &intent,
+                "putExtra",
+                "(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;",
+                &[JValue::Object(&jurl), JValue::Object(&jurl)]
+            )
+        );
+        j!(
+            "start_activity",
+            env.call_method(
+                &context,
+                "startActivity",
+                "(Landroid/content/Intent;)V",
+                &[JValue::Object(&intent)]
+            )
+        );
+        Ok(())
     }
-    let u: tauri::Url = url.parse().map_err(|e| format!("bad url: {e}"))?;
-    WebviewWindowBuilder::new(&app, "hubLogin", WebviewUrl::External(u))
-        .title("教务系统登录")
-        .build()
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    #[cfg(not(target_os = "android"))]
+    {
+        use tauri::{WebviewUrl, WebviewWindowBuilder};
+        if let Some(w) = app.get_webview_window("hubLogin") {
+            let _ = w.set_focus();
+            return Ok(());
+        }
+        let u: tauri::Url = url.parse().map_err(|e| format!("bad url: {e}"))?;
+        WebviewWindowBuilder::new(&app, "hubLogin", WebviewUrl::External(u))
+            .title("教务系统登录")
+            .build()
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
 }
 
 #[tauri::command]
