@@ -2014,10 +2014,13 @@ const DAY_CN = { 1: "周一", 2: "周二", 3: "周三", 4: "周四", 5: "周五"
 function openAdjustMoveModal(course, slot, toDay, toStart) {
   const endSec = slot.start + slot.step - 1;
   pendingAdjust = { course, slot, toDay, toStart };
+  // 信息布局：课程名 + 两个时间各自占行（标签小字 + 选择框样式块，全部居中）
   $("adjustMoveDetail").innerHTML =
-    `将「<b>${escapeHtml(course.name)}</b>」<br>` +
-    `从 ${DAY_CN[slot.day] || slot.day} 第 ${slot.start}-${endSec} 节（第 ${slot.startWeek}~${slot.endWeek} 周）<br>` +
-    `调到 ${DAY_CN[toDay] || toDay} 第 ${toStart}-${toStart + slot.step - 1} 节`;
+    `<div class="am-name">将「<b>${escapeHtml(course.name)}</b>」</div>` +
+    `<div class="am-tag">从</div>` +
+    `<div class="am-box">${DAY_CN[slot.day] || slot.day} 第 ${slot.start}-${endSec} 节 · 第 ${slot.startWeek}~${slot.endWeek} 周</div>` +
+    `<div class="am-tag">调到</div>` +
+    `<div class="am-box">${DAY_CN[toDay] || toDay} 第 ${toStart}-${toStart + slot.step - 1} 节</div>`;
   openModal("adjustMoveModal");
 }
 
