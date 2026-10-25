@@ -19,6 +19,10 @@ node scripts/prepare-tauri.mjs
 # 1) Rust aarch64 release（NDK clang 作链接器——Tauri CLI 原本注入的环境；
 #    custom-protocol 必须显式启用：CLI 构建 release 时自动加，绕过 CLI 会丢）
 $env:CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER = "$env:NDK_HOME\toolchains\llvm\prebuilt\windows-x86_64\bin\aarch64-linux-android24-clang.cmd"
+# ring（rustls 依赖）经 cc crate 编译 C 代码，需显式指定 NDK clang/ar
+$ndkBin = "$env:NDK_HOME\toolchains\llvm\prebuilt\windows-x86_64\bin"
+$env:CC_aarch64_linux_android = "$ndkBin\aarch64-linux-android24-clang.cmd"
+$env:AR_aarch64_linux_android = "$ndkBin\llvm-ar.exe"
 Set-Location "$root\src-tauri"
 cargo build --release --target aarch64-linux-android --features custom-protocol
 if ($LASTEXITCODE -ne 0) { throw 'cargo build failed' }
