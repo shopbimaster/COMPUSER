@@ -2048,7 +2048,7 @@ function openDayAdjustMenu(headerEl, day, dateIso) {
   menu.className = "day-menu";
   const btn = document.createElement("button");
   btn.type = "button";
-  btn.textContent = "整日调课…";
+  btn.textContent = "整日调课";
   btn.addEventListener("click", (ev) => {
     ev.stopPropagation();
     menu.remove();
@@ -2058,49 +2058,109 @@ function openDayAdjustMenu(headerEl, day, dateIso) {
   headerEl.appendChild(menu);
 }
 
-// 填充一个日期下拉（按周 optgroup 分组，选项 = MM-DD 周X，值 = ISO 日期）
-function fillAdjustDateSelect(sel) {
-  const s = currentSettings();
-  sel.innerHTML = "";
-  for (let w = 1; w <= s.totalWeeks; w++) {
-    const og = document.createElement("optgroup");
-    og.label = `第${w}周`;
-    for (let d = 1; d <= 7; d++) {
-      const iso = Adj.dateOfWeekDay(s.termStart, w, d);
-      og.appendChild(new Option(`${iso.slice(5)} ${DAY_CN[d]}`, iso));
+// 自绘下拉（与设置页「一天课程节数」同款标准）：触发按钮 + 滚动面板 + hidden 承值
+// ids = [btnId, menuId, hiddenId]
+function initSrSelect(ids) {
+  const btn = $(ids[0]);
+  const menu = $(ids[1]);
+  btn.onclick = () => {
+    menu.hidden = !menu.hidden;
+    if (!menu.hidden) {
+      const cur = menu.querySelector("button.sel");
+      if (cur) cur.scrollIntoView({ block: "nearest" });
     }
-    sel.appendChild(og);
-  }
+  };
+  menu.onclick = (e) => {
+    const b = e.target.closest("button[data-val]");
+    if (!b) return;
+    setSrSelect(ids, b.dataset.val, b.textContent);
+    menu.hidden = true;
+  };
+}
+
+// 设值：hidden 值 + 触发按钮文字 + 面板选中态
+function setSrSelect(ids, val, label) {
+  $(ids[2]).value = val;
+  $(ids[0]).textContent = label;
+  $(ids[1])
+    .querySelectorAll("button")
+    .forEach((x) => x.classList.toggle("sel", x.dataset.val === String(val)));
 }
 
 function openAdjustDayModal(day, dateIso) {
   const s = currentSettings();
   adjustDayFrom = dateIso;
-  fillAdjustDateSelect($("adjFromDate"));
-  fillAdjustDateSelect($("adjToDate"));
-  const weekSel = (id) => {
-    const el = $(id);
-    el.innerHTML = "";
-    for (let w = 1; w <= s.totalWeeks; w++) el.appendChild(new Option(`第${w}周`, w));
+  const dateIds = [
+    ["adjFromDateBtn", "adjFromDateMenu", "adjFromDate"],
+    ["adjToDateBtn", "adjToDateMenu", "adjToDate"],
+  ];
+  const weekIds = [
+    ["adjFromWeekBtn", "adjFromWeekMenu", "adjFromWeek"],
+    ["adjToWeekBtn", "adjToWeekMenu", "adjToWeek"],
+  ];
+  const dayIds = [
+    ["adjFromDayBtn", "adjFromDayMenu", "adjFromDay"],
+    ["adjToDayBtn", "adjToDayMenu", "adjToDay"],
+  ];
+  // 日期面板：按周分组（第N周组头 + 7 天选项），面板限高滚动（dd-sm 246px）
+  const fillDates = (ids) => {
+    let html = "";
+    for (let w = 1; w <= s.totalWeeks; w++) {
+      html += `<div class="dd-group">第${w}周</div>`;
+      for (let d = 1; d <= 7; d++) {
+        const iso = Adj.dateOfWeekDay(s.termStart, w, d);
+        html += `<button type="button" data-val="${iso}" class="${
+          iso === dateIso ? "sel" : ""
+        }">${iso.slice(5)} ${DAY_CN[d]}</button>`;
+      }
+    }
+    $(ids[1]).innerHTML = html;
   };
-  weekSel("adjFromWeek");
-  weekSel("adjToWeek");
-  const daySel = (id) => {
-    const el = $(id);
-    el.innerHTML = "";
-    for (let d = 1; d <= 7; d++) el.appendChild(new Option(DAY_CN[d], d));
+  const menuLabel = (menuId, val) => {
+    const b = $(menuId).querySelector(`button[data-val="${val}"]`);
+    return b ? b.textContent : val;
   };
-  daySel("adjFromDay");
-  daySel("adjToDay");
-  // 模式复位为按日期，起点预选点击的日期
+  for (const ids of dateIds) {
+    initSrSelect(ids);
+    fillDates(ids);
+  }
+  for (const ids of weekIds) {
+    initSrSelect(ids);
+    $(ids[1]).innerHTML = Array.from(
+      { length: s.totalWeeks },
+      (_, i) => `<button type="button" data-val="${i + 1}">第${i + 1}周</button>`,
+    ).join("");
+  }
+  for (const ids of dayIds) {
+    initSrSelect(ids);
+    $(ids[1]).innerHTML = [1, 2, 3, 4, 5, 6, 7]
+      .map((d) => `<button type="button" data-val="${d}">${DAY_CN[d]}</button>`)
+      .join("");
+  }
+  // 模式复位为按日期；起点预选点击的日期，目标默认同日；周次/星期模式默认换算到点击日期
   document.querySelector('input[name="adjMode"][value="date"]').checked = true;
   document.querySelector('input[name="adjMode"][value="week"]').checked = false;
-  $("adjFromDate").value = dateIso;
-  $("adjToDate").value = dateIso;
+  setSrSelect(dateIds[0], dateIso, menuLabel("adjFromDateMenu", dateIso));
+  setSrSelect(dateIds[1], dateIso, menuLabel("adjToDateMenu", dateIso));
+  const cur = Adj.weekDayOfDate(s.termStart, dateIso, s.totalWeeks);
+  const cw = cur ? cur.w : 1;
+  const cd = cur ? cur.d : day;
+  setSrSelect(weekIds[0], cw, `第${cw}周`);
+  setSrSelect(dayIds[0], cd, DAY_CN[cd]);
+  setSrSelect(weekIds[1], cw, `第${cw}周`);
+  setSrSelect(dayIds[1], cd, DAY_CN[cd]);
   const syncVis = () => {
-    const byDate = document.querySelector('input[name="adjMode"]:checked').value === "date";
-    for (const id of ["adjFromDate", "adjToDate"]) $(id).hidden = !byDate;
-    for (const id of ["adjFromWeek", "adjFromDay", "adjToWeek", "adjToDay"]) $(id).hidden = byDate;
+    const byDate =
+      document.querySelector('input[name="adjMode"]:checked').value === "date";
+    for (const id of ["adjFromDateWrap", "adjToDateWrap"])
+      $(id).hidden = !byDate;
+    for (const id of [
+      "adjFromWeekWrap",
+      "adjFromDayWrap",
+      "adjToWeekWrap",
+      "adjToDayWrap",
+    ])
+      $(id).hidden = byDate;
   };
   syncVis();
   for (const r of document.querySelectorAll('input[name="adjMode"]'))

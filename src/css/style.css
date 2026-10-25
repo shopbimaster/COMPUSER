@@ -1412,6 +1412,12 @@ input[type="range"]::-webkit-slider-thumb {
   background: var(--input-bg);
   font-weight: 700;
 }
+/* 自绘下拉面板的分组标题（如整日调课日期面板的「第N周」） */
+.dd-group {
+  padding: 7px 12px 3px;
+  font-size: 12px;
+  color: var(--text-2);
+}
 .set-row .sr-ctrl input[type="range"] {
   /* 覆盖全局 range 的 flex:1（长度随标签文字漂移）：统一 150px，行内右对齐；
      flex-shrink:1 保底——窄屏行宽不足时等量收缩避免溢出 */
@@ -2017,7 +2023,7 @@ body.course-drag-active {
   user-select: none;
   -webkit-user-select: none;
 }
-/* 表头点击弹出的整日调课入口（类似回到本周的下拉按钮） */
+/* 表头点击弹出的整日调课入口：样式与「回到本周」（.dropdown）完全同款 */
 .day-header {
   cursor: pointer;
   /* .day-menu 绝对定位的锚点：缺失时包含块落到带 transform 的 weekTrack，菜单飞出视野 */
@@ -2029,22 +2035,26 @@ body.course-drag-active {
   left: 50%;
   transform: translateX(-50%);
   z-index: 40;
-  background: var(--card, #fff);
-  border: 1px solid rgba(128, 128, 128, 0.25);
-  border-radius: 8px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
-  padding: 4px;
+  background: var(--card);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 6px;
   white-space: nowrap;
+  animation: pop 0.15s ease-out;
 }
 .day-menu button {
+  display: block;
   border: none;
-  background: var(--today, #e8939f);
-  color: #fff;
+  background: transparent;
+  color: var(--text);
   font: inherit;
-  font-size: 12px;
-  padding: 6px 12px;
-  border-radius: 6px;
+  font-size: 13.5px;
+  padding: 10px 14px;
+  border-radius: 10px;
   cursor: pointer;
+}
+.day-menu button:hover {
+  background: var(--input-bg);
 }
 /* 整日调课弹窗表单：标题左对齐加冒号，选择器换行居中 */
 .adj-mode-row {
@@ -2065,6 +2075,7 @@ body.course-drag-active {
   justify-content: center;
   gap: 8px;
 }
-.adj-picks select {
-  min-width: 120px;
+.adj-picks .sr-select-btn {
+  min-width: 128px;
+  justify-content: space-between;
 }

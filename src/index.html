@@ -12,7 +12,7 @@
     />
     <title>CAMPUSER</title>
     <link rel="icon" type="image/png" href="assets/icon.png" />
-    <link rel="stylesheet" href="css/style.css?v=2.2.0-1" />
+    <link rel="stylesheet" href="css/style.css?v=2.2.0-2" />
     <script src="../branding.js"></script>
   </head>
   <body>
@@ -975,17 +975,41 @@
           <div class="adj-group">
             <div class="adj-title">调课起点：</div>
             <div class="adj-picks">
-              <select id="adjFromDate" class="adj-date"></select>
-              <select id="adjFromWeek" class="adj-week" hidden></select>
-              <select id="adjFromDay" class="adj-day" hidden></select>
+              <span class="menu-wrap sr-select" id="adjFromDateWrap">
+                <button type="button" class="sr-select-btn" id="adjFromDateBtn"></button>
+                <div class="dropdown dd-sm align-left" id="adjFromDateMenu" hidden></div>
+                <input type="hidden" id="adjFromDate" />
+              </span>
+              <span class="menu-wrap sr-select" id="adjFromWeekWrap" hidden>
+                <button type="button" class="sr-select-btn" id="adjFromWeekBtn"></button>
+                <div class="dropdown dd-sm align-left" id="adjFromWeekMenu" hidden></div>
+                <input type="hidden" id="adjFromWeek" />
+              </span>
+              <span class="menu-wrap sr-select" id="adjFromDayWrap" hidden>
+                <button type="button" class="sr-select-btn" id="adjFromDayBtn"></button>
+                <div class="dropdown dd-sm align-left" id="adjFromDayMenu" hidden></div>
+                <input type="hidden" id="adjFromDay" />
+              </span>
             </div>
           </div>
           <div class="adj-group">
             <div class="adj-title">调课目标：</div>
             <div class="adj-picks">
-              <select id="adjToDate" class="adj-date"></select>
-              <select id="adjToWeek" class="adj-week" hidden></select>
-              <select id="adjToDay" class="adj-day" hidden></select>
+              <span class="menu-wrap sr-select" id="adjToDateWrap">
+                <button type="button" class="sr-select-btn" id="adjToDateBtn"></button>
+                <div class="dropdown dd-sm align-left" id="adjToDateMenu" hidden></div>
+                <input type="hidden" id="adjToDate" />
+              </span>
+              <span class="menu-wrap sr-select" id="adjToWeekWrap" hidden>
+                <button type="button" class="sr-select-btn" id="adjToWeekBtn"></button>
+                <div class="dropdown dd-sm align-left" id="adjToWeekMenu" hidden></div>
+                <input type="hidden" id="adjToWeek" />
+              </span>
+              <span class="menu-wrap sr-select" id="adjToDayWrap" hidden>
+                <button type="button" class="sr-select-btn" id="adjToDayBtn"></button>
+                <div class="dropdown dd-sm align-left" id="adjToDayMenu" hidden></div>
+                <input type="hidden" id="adjToDay" />
+              </span>
             </div>
           </div>
         </div>
@@ -999,18 +1023,18 @@
 
     <div class="toast" id="toast" hidden></div>
 
-    <script src="../core/adjust.js?v=2.2.0-1"></script>
-    <script src="../core/week.js?v=2.2.0-1"></script>
-    <script src="../core/conflict.js?v=2.2.0-1"></script>
-    <script src="../core/model.js?v=2.2.0-1"></script>
-    <script src="../core/merge.js?v=2.2.0-1"></script>
-    <script src="../core/codec/backup.js?v=2.2.0-1"></script>
-    <script src="../core/codec/share.js?v=2.2.0-1"></script>
-    <script src="../core/codec/csv.js?v=2.2.0-1"></script>
-    <script src="../core/codec/ics.js?v=2.2.0-1"></script>
+    <script src="../core/adjust.js?v=2.2.0-2"></script>
+    <script src="../core/week.js?v=2.2.0-2"></script>
+    <script src="../core/conflict.js?v=2.2.0-2"></script>
+    <script src="../core/model.js?v=2.2.0-2"></script>
+    <script src="../core/merge.js?v=2.2.0-2"></script>
+    <script src="../core/codec/backup.js?v=2.2.0-2"></script>
+    <script src="../core/codec/share.js?v=2.2.0-2"></script>
+    <script src="../core/codec/csv.js?v=2.2.0-2"></script>
+    <script src="../core/codec/ics.js?v=2.2.0-2"></script>
     <script src="../adapters/electron-bridge.js"></script>
     <script src="../adapters/tauri-bridge.js"></script>
     <script src="../adapters/browser-bridge.js"></script>
-    <script src="js/app.js?v=2.2.0-1"></script>
+    <script src="js/app.js?v=2.2.0-2"></script>
   </body>
 </html>
