@@ -1408,6 +1408,15 @@ input[type="range"]::-webkit-slider-thumb {
   max-height: 246px;
   overflow-y: auto;
 }
+/* 自绘下拉的独立图层形态（挂 body + JS 定位）：fixed 脱离弹窗文档流，
+   不再撑开弹窗内容；打开时以触发按钮为中心定位（下方展开、空间不足向上翻） */
+.dropdown.dd-fixed {
+  position: fixed;
+  top: auto;
+  right: auto;
+  z-index: 200; /* modal-overlay(100) 之上、toast(300) 之下 */
+  animation: pop 0.15s ease-out;
+}
 .dd-sm button.sel {
   background: var(--input-bg);
   font-weight: 700;

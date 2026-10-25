@@ -1506,6 +1506,8 @@ function openModal(id) {
 }
 function closeModal(id) {
   $(id).hidden = true;
+  // 独立图层的自绘下拉面板（挂 body）随宿主弹窗一并收起
+  document.querySelectorAll(".dd-fixed").forEach((m) => (m.hidden = true));
 }
 
 // ---------- 课表管理（多课表） ----------
@@ -2060,14 +2062,33 @@ function openDayAdjustMenu(headerEl, day, dateIso) {
 
 // 自绘下拉（与设置页「一天课程节数」同款标准）：触发按钮 + 滚动面板 + hidden 承值
 // ids = [btnId, menuId, hiddenId]
+// 面板为独立图层：挂 body + fixed 定位（dd-fixed），以触发按钮为中心展开，
+// 不占据弹窗文档流（否则溢出会撑大弹窗滚动高度，把内容挤出滑轨）
 function initSrSelect(ids) {
   const btn = $(ids[0]);
   const menu = $(ids[1]);
+  document.body.appendChild(menu);
+  menu.classList.add("dd-fixed");
   btn.onclick = () => {
     menu.hidden = !menu.hidden;
     if (!menu.hidden) {
+      document
+        .querySelectorAll(".dd-fixed")
+        .forEach((m) => {
+          if (m !== menu) m.hidden = true;
+        });
       const cur = menu.querySelector("button.sel");
       if (cur) cur.scrollIntoView({ block: "nearest" });
+      // 定位：水平以触发按钮中心对齐（钳制在屏内），默认下方展开，空间不足向上翻
+      const r = btn.getBoundingClientRect();
+      const mw = menu.offsetWidth;
+      const mh = menu.offsetHeight;
+      let left = r.left + r.width / 2 - mw / 2;
+      left = Math.max(8, Math.min(left, window.innerWidth - mw - 8));
+      let top = r.bottom + 6;
+      if (top + mh > window.innerHeight - 8) top = Math.max(8, r.top - mh - 6);
+      menu.style.left = left + "px";
+      menu.style.top = top + "px";
     }
   };
   menu.onclick = (e) => {
@@ -2152,6 +2173,8 @@ function openAdjustDayModal(day, dateIso) {
   const syncVis = () => {
     const byDate =
       document.querySelector('input[name="adjMode"]:checked').value === "date";
+    // 切模式收起独立图层面板（隐藏的宿主 wrap 管不到挂 body 的面板）
+    document.querySelectorAll(".dd-fixed").forEach((m) => (m.hidden = true));
     for (const id of ["adjFromDateWrap", "adjToDateWrap"])
       $(id).hidden = !byDate;
     for (const id of [
@@ -2565,7 +2588,7 @@ function bindEvents() {
     doImportAction(b.dataset.act);
   });
   document.addEventListener("click", (e) => {
-    if (!e.target.closest(".menu-wrap")) {
+    if (!e.target.closest(".menu-wrap") && !e.target.closest(".dd-fixed")) {
       document.querySelectorAll(".dropdown").forEach((d) => {
         d.hidden = true;
       });
