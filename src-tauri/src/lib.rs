@@ -376,6 +376,89 @@ async fn http_get(
     }
 }
 
+// 教务导入（Android 等 Tauri 壳）：开外部 URL WebView 窗口供用户登录教务
+#[tauri::command]
+async fn hub_open_login(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    use tauri::{WebviewUrl, WebviewWindowBuilder};
+    if let Some(w) = app.get_webview_window("hubLogin") {
+        let _ = w.set_focus();
+        return Ok(());
+    }
+    let u: tauri::Url = url.parse().map_err(|e| format!("bad url: {e}"))?;
+    WebviewWindowBuilder::new(&app, "hubLogin", WebviewUrl::External(u))
+        .title("教务系统登录")
+        .build()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn hub_close_login(app: tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("hubLogin") {
+        let _ = w.close();
+    }
+}
+
+// 教务导入（Android）：读 WebView 全局 CookieManager 里的教务会话 Cookie（JNI）
+#[tauri::command]
+fn hub_get_cookies(url: Option<String>) -> Result<String, String> {
+    #[cfg(target_os = "android")]
+    {
+        use jni::objects::{JObject, JValue};
+        let target = url.unwrap_or_else(|| "https://mhub.hust.edu.cn".into());
+        let ac = ndk_context::android_context();
+        let (vm_ptr, _ctx_ptr) = (ac.vm(), ac.context());
+        if vm_ptr.is_null() {
+            return Err("no android context".into());
+        }
+        let vm = unsafe { jni::JavaVM::from_raw(vm_ptr.cast()) }.map_err(|e| e.to_string())?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        macro_rules! j {
+            ($step:expr, $res:expr) => {
+                match $res {
+                    Ok(v) => v,
+                    Err(e) => {
+                        let _ = env.exception_clear();
+                        return Err(format!("JNI[{}]: {}", $step, e));
+                    }
+                }
+            };
+        }
+        // CookieManager.getInstance().getCookie("https://mhub.hust.edu.cn")
+        let cm = j!(
+            "CookieManager.getInstance",
+            env.call_static_method(
+                "android/webkit/CookieManager",
+                "getInstance",
+                "()Landroid/webkit/CookieManager;",
+                &[]
+            )
+            .and_then(|v| v.l())
+        );
+        let jurl = j!("new_string", env.new_string(&target));
+        let cookie = j!(
+            "getCookie",
+            env.call_method(
+                &cm,
+                "getCookie",
+                "(Ljava/lang/String;)Ljava/lang/String;",
+                &[JValue::Object(&jurl)]
+            )
+            .and_then(|v| v.l())
+        );
+        if cookie.is_null() {
+            return Ok(String::new()); // 未登录/无 Cookie
+        }
+        let s: String = j!("to_str", env.get_string((&cookie).into()).map(|s| s.into()));
+        Ok(s)
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = url;
+        Err("仅 Android 支持从 CookieManager 读取".into())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -392,7 +475,10 @@ pub fn run() {
             read_text_file,
             write_temp_file,
             share_file_android,
-            http_get
+            http_get,
+            hub_open_login,
+            hub_close_login,
+            hub_get_cookies
         ])
         .run(tauri::generate_context!())
         .expect("error while running CAMPUSER");

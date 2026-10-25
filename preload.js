@@ -11,5 +11,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   autostartGet: () => ipcRenderer.invoke('autostart:get'),
   autostartSet: (on) => ipcRenderer.invoke('autostart:set', on),
   // 教务导入：主进程代理 HTTP GET（绕过渲染进程 CORS；不跟随到非同源跳转）
-  netGet: (payload) => ipcRenderer.invoke('net:get', payload)
+  netGet: (payload) => ipcRenderer.invoke('net:get', payload),
+  // 教务导入：内嵌登录窗口（独立会话分区）与会话 Cookie 读取
+  hubOpenLogin: (url) => ipcRenderer.invoke('hub:openLogin', url),
+  hubCloseLogin: () => ipcRenderer.invoke('hub:closeLogin'),
+  hubGetCookies: () => ipcRenderer.invoke('hub:getCookies')
 });

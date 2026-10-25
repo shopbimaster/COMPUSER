@@ -46,6 +46,18 @@
         }
       }
     },
+    // 教务导入登录窗口：Android 开外部 URL WebView + CookieManager 读会话
+    hub: {
+      openLogin: async (url) => {
+        try { await invoke('hub_open_login', { url: String(url) }); return true; }
+        catch (e) { return false; }
+      },
+      closeLogin: async () => { try { await invoke('hub_close_login'); } catch (e) { /* 窗口可能已关 */ } },
+      getCookies: async () => {
+        try { return (await invoke('hub_get_cookies')) || ''; }
+        catch (e) { return ''; }
+      }
+    },
     storage: {
       load: async () => {
         try { return await invoke('load_data'); } catch (e) { return null; }

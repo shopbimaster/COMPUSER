@@ -2018,3 +2018,24 @@ textarea {
   padding-left: 18px;
   line-height: 1.7;
 }
+/* 教务导入：学校选择列表（A~Z + 搜索） */
+.school-list {
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.school-item {
+  text-align: left;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.school-item:hover {
+  background: rgba(128, 128, 128, 0.14);
+}

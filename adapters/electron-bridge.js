@@ -26,6 +26,12 @@
     // 教务导入网络端口：主进程代理 GET（无 CORS），返回 {ok, status, text, error}
     net: {
       get: (payload) => window.electronAPI.netGet(payload)
+    },
+    // 教务导入登录窗口：内嵌教务页登录 + 会话 Cookie 读取
+    hub: {
+      openLogin: (url) => window.electronAPI.hubOpenLogin(url),
+      closeLogin: () => window.electronAPI.hubCloseLogin(),
+      getCookies: () => window.electronAPI.hubGetCookies()
     }
   };
 })();

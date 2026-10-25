@@ -1841,15 +1841,15 @@ async function doExportAction(act) {
         `${BRAND.EXPORT_PREFIX}-${base}-${dateStamp()}.csv`,
       );
     } else if (act === "share-ics") {
-      where = await Ports.share.send(
-        Ics.toIcs(sch),
-        `${BRAND.EXPORT_PREFIX}-${base}-${dateStamp()}.ics`,
-      );
-    } else if (act === "share-qr") {
-      closeModal("shareChoiceModal");
-      await openQrModal();
-      return;
-    }
+    where = await Ports.share.send(
+      Ics.toIcs(sch),
+      `${BRAND.EXPORT_PREFIX}-${base}-${dateStamp()}.ics`,
+    );
+  } else if (act === "share-qr") {
+    // 口令/二维码分享已下线（承载能力有限；未来远程服务上线后可能以云端分享回归）
+    showToast("口令分享已下线，请使用 JSON / CSV / ICS 文件分享");
+    return;
+  }
   } catch (e) {
     // 保存失败必须给出详细报错（与导入诊断同级），不静默吞掉
     showToast(`保存失败：${e?.message || String(e)}`, 8000);
@@ -1863,101 +1863,12 @@ async function doExportAction(act) {
   showToast(`已保存到 ${whereText}`, 4000);
 }
 
-async function openQrModal() {
-  const r = await Share.encodeShare(currentSchedule());
-  if (r.error) {
-    showToast(r.error);
-    return;
-  }
-  $("shareCode").value = r.code;
-  const box = $("qrBox");
-  box.innerHTML = "";
-  if (typeof qrcode === "undefined") {
-    box.innerHTML =
-      '<div class="qr-too-big">二维码组件未加载（vendor/qrcode-generator.js）<br>仍可使用下方口令或文件方式分享</div>';
-    $("qrTip").textContent = "";
-  } else {
-    try {
-      const qr = qrcode(0, "M");
-      qr.addData(r.code);
-      qr.make();
-      box.innerHTML = qr.createSvgTag({
-        cellSize: 4,
-        margin: 2,
-        scalable: true,
-      });
-      $("qrTip").textContent =
-        "对方扫码后按提示操作，或将口令粘贴到「导入 ▾ → 从文本口令导入」";
-    } catch (e) {
-      box.innerHTML =
-        '<div class="qr-too-big">口令过长，无法生成二维码<br>请使用下方口令或文件方式分享</div>';
-      $("qrTip").textContent = "";
-    }
-  }
-  openModal("qrModal");
-}
-
 let pendingImportState = null;
 let pendingIcsImport = null; // ICS 导入：待用户选择匹配日程的存储格式
 
-// ---------- 摄像头扫码（BarcodeDetector + getUserMedia） ----------
-let scanStream = null,
-  scanTimer = null;
-
-function stopScan() {
-  if (scanTimer) {
-    clearInterval(scanTimer);
-    scanTimer = null;
-  }
-  if (scanStream) {
-    scanStream.getTracks().forEach((t) => t.stop());
-    scanStream = null;
-  }
-}
-
-async function startScan() {
-  if (!("BarcodeDetector" in window)) {
-    showToast("当前环境不支持扫码识别，请手动粘贴口令");
-    return;
-  }
-  try {
-    scanStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment" },
-    });
-  } catch (e) {
-    showToast("无法访问摄像头，请检查权限或手动粘贴口令");
-    return;
-  }
-  const video = $("scanVideo");
-  video.srcObject = scanStream;
-  $("scanHint").textContent = "将二维码对准取景框";
-  openModal("scanModal");
-  const detector = new window.BarcodeDetector();
-  scanTimer = setInterval(async () => {
-    if (video.readyState < 2) return;
-    try {
-      const codes = await detector.detect(video);
-      const hit = codes.find((c) => /^WU[01]:/.test(c.rawValue || ""));
-      if (hit) {
-        $("codeInput").value = hit.rawValue;
-        stopScan();
-        closeModal("scanModal");
-        showToast("已识别口令，请点击导入");
-      }
-    } catch (e) {
-      /* 单帧失败忽略 */
-    }
-  }, 350);
-}
-
 async function doImportAction(act) {
   if (act === "hub") {
-    openHubImport();
-    return;
-  }
-  if (act === "code") {
-    $("codeInput").value = "";
-    openModal("codeImportModal");
+    openSchoolPicker();
     return;
   }
   const r = await Ports.share.receive();
@@ -1970,10 +1881,55 @@ async function doImportAction(act) {
   await handleImportText(r.text, r.name);
 }
 
-// ---------- 教务导入（华中科技大学 HUB，mhub.hust.edu.cn） ----------
-// 三步向导：粘贴 Cookie → 选学期 → 预览确认。Cookie 不落盘（仅内存），
+// ---------- 教务导入（学校教务，当前支持：华中科技大学 HUB） ----------
+// 三步向导：内嵌登录教务页 → 选学期 → 预览确认。会话 Cookie 仅内存使用不落盘；
 // mhub 需校园网/学校 VPN；https 网络失败自动回落 http（教务设备明文放行）。
-const hubState = { cookie: "", terms: [], term: "", parsed: null };
+const HUB_BY_COURSE_URL = "https://mhub.hust.edu.cn/kbPageController/by-course";
+const SCHOOLS = [
+  { id: "hust", name: "华中科技大学", py: "hzkjdx" }, // py：拼音首字母缩写，供 A~Z 排序与搜索
+];
+const hubState = { school: null, cookie: "", terms: [], term: "", parsed: null, loginOpened: false };
+
+function openSchoolPicker() {
+  if (!Ports.net || typeof Ports.net.get !== "function" || !Ports.hub) {
+    showToast("当前环境不支持教务导入（需 Win / Android 端）", 5000);
+    return;
+  }
+  renderSchoolList($("schoolSearch").value || "");
+  openModal("schoolPickerModal");
+}
+
+function renderSchoolList(query) {
+  const kw = String(query || "").trim().toLowerCase();
+  const list = SCHOOLS.filter(
+    (s) => !kw || s.name.toLowerCase().includes(kw) || s.py.includes(kw),
+  ).sort((a, b) => (a.py || a.name).toLowerCase().localeCompare((b.py || b.name).toLowerCase())); // A~Z
+  $("schoolList").innerHTML = list.length
+    ? list
+        .map(
+          (s) =>
+            `<button type="button" class="school-item" data-id="${s.id}">${escapeHtml(s.name)}</button>`,
+        )
+        .join("")
+    : '<div style="opacity:.6;font-size:13px;padding:8px 4px">没有匹配的学校</div>';
+}
+
+function openHubImport(school) {
+  hubState.school = school;
+  hubState.cookie = "";
+  hubState.terms = [];
+  hubState.term = "";
+  hubState.parsed = null;
+  hubState.loginOpened = false;
+  $("hubIntro").innerHTML =
+    `登录 ${escapeHtml(school.name)} 教务（HUB，mhub.hust.edu.cn）。需要 <b>校园网或学校 VPN</b> 环境；登录完成后回到本窗口继续。`;
+  $("hubStepCookie").hidden = false;
+  $("hubStepTerm").hidden = true;
+  $("hubStepPreview").hidden = true;
+  $("hubLoginStatus").textContent = "状态：未登录";
+  $("btnHubNext").textContent = "打开教务登录页";
+  openModal("hubImportModal");
+}
 
 async function hubNet(req) {
   const headers = Object.assign(
@@ -1991,27 +1947,10 @@ async function hubNet(req) {
   return r || { ok: false, status: 0, text: "", error: "网络端口不可用" };
 }
 
-function openHubImport() {
-  if (!Ports.net || typeof Ports.net.get !== "function") {
-    showToast("当前环境不支持教务导入（需 Win / Android 端）", 5000);
-    return;
-  }
-  hubState.cookie = "";
-  hubState.terms = [];
-  hubState.term = "";
-  hubState.parsed = null;
-  $("hubCookie").value = "";
-  $("hubStepCookie").hidden = false;
-  $("hubStepTerm").hidden = true;
-  $("hubStepPreview").hidden = true;
-  $("btnHubNext").textContent = "拉取学期列表";
-  openModal("hubImportModal");
-}
-
 async function hubNext() {
   const btn = $("btnHubNext");
   if (btn.dataset.busy === "1") return;
-  // 第 3 步再次点击 = 确认导入
+  // 第 3 步再次点击 = 确认导入（与文件导入一致：询问是否沿用当前外观/时间设置）
   if ($("hubStepPreview").hidden === false && hubState.parsed) {
     const p = hubState.parsed;
     try {
@@ -2021,27 +1960,37 @@ async function hubNext() {
         courses: p.courses,
       });
       closeModal("hubImportModal");
-      importAsNewSchedules([schedule], false);
+      importAsNewSchedules([schedule], true);
     } catch (e) {
       showToast("导入失败：" + ((e && e.message) || e), 8000);
     }
     return;
   }
-  // 第 1 步：Cookie → 学期列表
+  // 第 1 步：打开登录页 → 已登录则拉学期列表
   if ($("hubStepTerm").hidden) {
-    const cookie = $("hubCookie").value.trim().replace(/^cookie\s*:\s*/i, "");
-    if (!cookie) {
-      showToast("请先粘贴 Cookie");
-      return;
-    }
-    hubState.cookie = cookie;
     btn.dataset.busy = "1";
-    btn.textContent = "拉取中…";
     try {
+      if (!hubState.loginOpened) {
+        await Ports.hub.openLogin(HUB_BY_COURSE_URL);
+        hubState.loginOpened = true;
+        $("hubLoginStatus").textContent =
+          "状态：教务页已打开，请在其中完成登录（学号 + 密码），回到本窗口点击下方按钮";
+        btn.textContent = "我已登录，拉取学期列表";
+        return;
+      }
+      const cookie = await Ports.hub.getCookies();
+      if (!cookie) {
+        $("hubLoginStatus").textContent =
+          "状态：未检测到登录会话，请先在教务页完成登录（学号 + 密码）";
+        showToast("未检测到登录，请先在教务页完成登录");
+        return;
+      }
+      hubState.cookie = cookie;
+      $("hubLoginStatus").textContent = "状态：已获取登录会话，正在拉取学期列表…";
       const req = Hub.xqListRequest();
       const r = await hubNet(req);
       if (r.status === 401 || r.status === 403)
-        throw new Hub.HubError("Cookie 已失效或未登录，请重新复制");
+        throw new Hub.HubError("登录会话无效，请在教务页重新登录后再试");
       const terms = Hub.parseXqList(r.text || "");
       if (!terms.length) throw new Hub.HubError("学期列表为空");
       hubState.terms = terms;
@@ -2063,7 +2012,8 @@ async function hubNext() {
       btn.dataset.busy = "";
       if ($("hubStepPreview").hidden && !$("hubStepTerm").hidden)
         btn.textContent = "拉取课表";
-      else btn.textContent = "拉取学期列表";
+      else if (!hubState.loginOpened) btn.textContent = "打开教务登录页";
+      else btn.textContent = "我已登录，拉取学期列表";
     }
     return;
   }
@@ -2075,7 +2025,7 @@ async function hubNext() {
     const req = Hub.courseRequest(hubState.term);
     const r = await hubNet(req);
     if (r.status === 401 || r.status === 403)
-      throw new Hub.HubError("Cookie 已失效或未登录，请重新复制");
+      throw new Hub.HubError("登录会话无效，请在教务页重新登录后再试");
     const p = Hub.parseCourse(r.text || "");
     hubState.parsed = p;
     const warnHtml = p.warnings.length
@@ -2097,7 +2047,6 @@ async function hubNext() {
     else btn.textContent = "拉取学期列表";
   }
 }
-
 async function handleImportText(text, name) {
   // CSV → 课程导入当前课表
   if (/\.csv$/i.test(name || "")) {
@@ -2448,12 +2397,6 @@ function bindEvents() {
     if (!b) return;
     doExportAction("share-" + b.dataset.share);
   });
-  // 摄像头扫码入口
-  $("btnScanCode").onclick = () => startScan();
-  // 扫码弹窗关闭（含 Escape/遮罩）时停止摄像头
-  new MutationObserver(() => {
-    if ($("scanModal").hidden) stopScan();
-  }).observe($("scanModal"), { attributes: true, attributeFilter: ["hidden"] });
   $("importMenu").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-act]");
     if (!b) return;
@@ -2468,51 +2411,17 @@ function bindEvents() {
     }
   });
 
-  // QR / 口令 / 导入选择
-  $("btnCopyCode").onclick = async () => {
-    const code = $("shareCode").value;
-    if (!code) return;
-    try {
-      await navigator.clipboard.writeText(code);
-    } catch (e) {
-      $("shareCode").select();
-      document.execCommand("copy");
-    }
-    showToast("口令已复制");
-  };
-  $("btnSaveShareFile").onclick = async () => {
-    const sch = currentSchedule();
-    let where = null;
-    try {
-      where = await Ports.share.send(
-        Bk.serializeShare(sch),
-        `wakeup-share-${fileNameSafe(sch.name)}.json`,
-      );
-    } catch (e) {
-      showToast(`保存失败：${e?.message || String(e)}`, 8000);
-      return;
-    }
-    if (!where) return;
-    const whereText = where.startsWith("content://")
-      ? `「${decodeURIComponent(where.split("/").pop() || "所选位置")}」`
-      : where;
-    showToast(`已保存到 ${whereText}`, 4000);
-  };
+  // 教务导入：学校列表（搜索过滤 + 点击进入向导）
+  $("schoolSearch").addEventListener("input", (e) => renderSchoolList(e.target.value));
+  $("schoolList").addEventListener("click", (e) => {
+    const b = e.target.closest("button.school-item");
+    if (!b) return;
+    const school = SCHOOLS.find((s) => s.id === b.dataset.id);
+    if (!school) return;
+    closeModal("schoolPickerModal");
+    openHubImport(school);
+  });
   $("btnHubNext").onclick = () => hubNext();
-  $("btnImportCode").onclick = async () => {
-    const code = $("codeInput").value.trim();
-    if (!code) {
-      showToast("请粘贴口令");
-      return;
-    }
-    const r = await Share.decodeShare(code);
-    if (r.error) {
-      showToast("导入失败：" + r.error);
-      return;
-    }
-    closeModal("codeImportModal");
-    importAsNewSchedules([r.schedule], true);
-  };
   $("btnConfirmImport").onclick = confirmImportChoice;
   $("btnConfirmIcsFormat").onclick = confirmIcsFormat;
   // 导入设置统一询问：沿用当前设置（白名单覆盖 + 时间表深拷贝）或保留文件自带

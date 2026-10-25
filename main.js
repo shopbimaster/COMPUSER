@@ -132,6 +132,43 @@ ipcMain.handle('net:get', async (_e, payload) => {
   }
 });
 
+// 教务导入：内嵌教务登录窗口（独立内存会话分区，不影响主窗口登录态）
+let hubWin = null;
+
+ipcMain.handle('hub:openLogin', (_e, url) => {
+  if (hubWin && !hubWin.isDestroyed()) {
+    hubWin.focus();
+    return true;
+  }
+  hubWin = new BrowserWindow({
+    width: 1024,
+    height: 780,
+    title: '教务系统登录',
+    webPreferences: {
+      // partition 内存分区：会话 Cookie 只活在本窗口生命周期，不与主窗口/其他站点共享
+      partition: 'hub-login',
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  hubWin.setMenuBarVisibility(false);
+  hubWin.loadURL(String(url));
+  hubWin.on('closed', () => { hubWin = null; });
+  return true;
+});
+
+ipcMain.handle('hub:closeLogin', () => {
+  if (hubWin && !hubWin.isDestroyed()) hubWin.close();
+  return true;
+});
+
+// 教务导入：读取登录窗口会话里的教务 Cookie（拼接为 Cookie 头字符串）
+ipcMain.handle('hub:getCookies', async () => {
+  const ses = require('electron').session.fromPartition('hub-login');
+  const cookies = await ses.cookies.get({ domain: 'hust.edu.cn' });
+  return cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+});
+
 app.whenReady().then(() => {
   ensureDataFile();
   createWindow();
