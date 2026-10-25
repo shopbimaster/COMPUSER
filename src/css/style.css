@@ -2002,3 +2002,19 @@ textarea {
     row-gap: 6px;
   }
 }
+
+/* 教务导入向导（HUB）帮助折叠块 */
+#hubImportModal .hub-help {
+  margin-top: 8px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+#hubImportModal .hub-help summary {
+  cursor: pointer;
+  user-select: none;
+}
+#hubImportModal .hub-help-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  line-height: 1.7;
+}

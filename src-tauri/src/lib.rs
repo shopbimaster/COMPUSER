@@ -342,6 +342,40 @@ async fn share_file_android(app: tauri::AppHandle, path: String, mime: Option<St
     }
 }
 
+// 教务导入：代理 HTTP GET（reqwest，accept 自签证书以兼容校园网设备；
+// 返回 {ok, status, text, error}，语义由渲染进程 core 决定）
+#[tauri::command]
+async fn http_get(
+    url: String,
+    headers: Option<std::collections::HashMap<String, String>>,
+) -> Result<serde_json::Value, String> {
+    if !url.starts_with("https://") && !url.starts_with("http://") {
+        return Ok(serde_json::json!({ "ok": false, "status": 0, "text": "", "error": "仅支持 http(s) 地址" }));
+    }
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let mut req = client
+        .get(&url)
+        .header("Accept", "application/json, text/plain, */*")
+        .header("X-Requested-With", "XMLHttpRequest");
+    if let Some(hs) = &headers {
+        for (k, v) in hs {
+            req = req.header(k, v);
+        }
+    }
+    match req.send().await {
+        Ok(resp) => {
+            let status = resp.status().as_u16();
+            let text = resp.text().await.unwrap_or_default();
+            Ok(serde_json::json!({ "ok": status < 400, "status": status, "text": text }))
+        }
+        Err(e) => Ok(serde_json::json!({ "ok": false, "status": 0, "text": "", "error": e.to_string() })),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -357,7 +391,8 @@ pub fn run() {
             write_file,
             read_text_file,
             write_temp_file,
-            share_file_android
+            share_file_android,
+            http_get
         ])
         .run(tauri::generate_context!())
         .expect("error while running CAMPUSER");

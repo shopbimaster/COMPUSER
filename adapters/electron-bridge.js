@@ -22,6 +22,10 @@
     autostart: {
       get: () => window.electronAPI.autostartGet(),
       set: (on) => window.electronAPI.autostartSet(on)
+    },
+    // 教务导入网络端口：主进程代理 GET（无 CORS），返回 {ok, status, text, error}
+    net: {
+      get: (payload) => window.electronAPI.netGet(payload)
     }
   };
 })();

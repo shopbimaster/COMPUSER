@@ -36,6 +36,16 @@
     isElectron: false,
     isTauri: true,
     platform: null, // 'android' | 'windows' | 'macos' | 'linux'（init 异步填充）
+    // 教务导入网络端口：Rust http_get 代理 GET（无 CORS/自签证书兼容），{ok,status,text,error}
+    net: {
+      get: async (payload) => {
+        try {
+          return await invoke('http_get', { url: String(payload.url), headers: payload.headers || null });
+        } catch (e) {
+          return { ok: false, status: 0, text: '', error: String((e && e.message) || e) };
+        }
+      }
+    },
     storage: {
       load: async () => {
         try { return await invoke('load_data'); } catch (e) { return null; }

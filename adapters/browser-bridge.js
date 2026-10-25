@@ -12,6 +12,17 @@
 
   window.__ports = {
     isElectron: false,
+    net: {
+      // 浏览器直连受 CORS 限制，多数教务地址会被拦——教务导入以 Win/Android 端为主
+      get: async (payload) => {
+        try {
+          const r = await fetch(payload.url, { headers: payload.headers || {} });
+          return { ok: r.ok, status: r.status, text: await r.text() };
+        } catch (e) {
+          return { ok: false, status: 0, text: '', error: String((e && e.message) || e) + '（浏览器直连可能被 CORS 拦截，请用 Win/Android 端）' };
+        }
+      }
+    },
     storage: {
       load: async () => {
         try {

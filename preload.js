@@ -9,5 +9,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportFile: (payload) => ipcRenderer.invoke('share:exportFile', payload),
   importFile: () => ipcRenderer.invoke('share:importFile'),
   autostartGet: () => ipcRenderer.invoke('autostart:get'),
-  autostartSet: (on) => ipcRenderer.invoke('autostart:set', on)
+  autostartSet: (on) => ipcRenderer.invoke('autostart:set', on),
+  // 教务导入：主进程代理 HTTP GET（绕过渲染进程 CORS；不跟随到非同源跳转）
+  netGet: (payload) => ipcRenderer.invoke('net:get', payload)
 });

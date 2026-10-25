@@ -73,6 +73,7 @@ const M = CampuserModel,
 const Share = CampuserShareCodec,
   Csv = CampuserCsvCodec,
   Ics = CampuserIcsCodec;
+const Hub = window.CampuserHub; // 教务导入（HUST HUB）解析器
 const {
   parseDate,
   fmtDate,
@@ -1950,6 +1951,10 @@ async function startScan() {
 }
 
 async function doImportAction(act) {
+  if (act === "hub") {
+    openHubImport();
+    return;
+  }
   if (act === "code") {
     $("codeInput").value = "";
     openModal("codeImportModal");
@@ -1963,6 +1968,134 @@ async function doImportAction(act) {
     return;
   }
   await handleImportText(r.text, r.name);
+}
+
+// ---------- 教务导入（华中科技大学 HUB，mhub.hust.edu.cn） ----------
+// 三步向导：粘贴 Cookie → 选学期 → 预览确认。Cookie 不落盘（仅内存），
+// mhub 需校园网/学校 VPN；https 网络失败自动回落 http（教务设备明文放行）。
+const hubState = { cookie: "", terms: [], term: "", parsed: null };
+
+async function hubNet(req) {
+  const headers = Object.assign(
+    {
+      Cookie: hubState.cookie,
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    },
+    req.headers || {},
+  );
+  let r = await Ports.net.get({ url: req.url, headers });
+  // 网络层失败（非 HTTP 状态码）时按 App 行为回落 http
+  if ((!r || r.status === 0) && req.fallbackUrl)
+    r = await Ports.net.get({ url: req.fallbackUrl, headers });
+  return r || { ok: false, status: 0, text: "", error: "网络端口不可用" };
+}
+
+function openHubImport() {
+  if (!Ports.net || typeof Ports.net.get !== "function") {
+    showToast("当前环境不支持教务导入（需 Win / Android 端）", 5000);
+    return;
+  }
+  hubState.cookie = "";
+  hubState.terms = [];
+  hubState.term = "";
+  hubState.parsed = null;
+  $("hubCookie").value = "";
+  $("hubStepCookie").hidden = false;
+  $("hubStepTerm").hidden = true;
+  $("hubStepPreview").hidden = true;
+  $("btnHubNext").textContent = "拉取学期列表";
+  openModal("hubImportModal");
+}
+
+async function hubNext() {
+  const btn = $("btnHubNext");
+  if (btn.dataset.busy === "1") return;
+  // 第 3 步再次点击 = 确认导入
+  if ($("hubStepPreview").hidden === false && hubState.parsed) {
+    const p = hubState.parsed;
+    try {
+      const schedule = M.normalizeSchedule({
+        name: p.scheduleName,
+        settings: { termStart: p.termStart, totalWeeks: p.totalWeeks },
+        courses: p.courses,
+      });
+      closeModal("hubImportModal");
+      importAsNewSchedules([schedule], false);
+    } catch (e) {
+      showToast("导入失败：" + ((e && e.message) || e), 8000);
+    }
+    return;
+  }
+  // 第 1 步：Cookie → 学期列表
+  if ($("hubStepTerm").hidden) {
+    const cookie = $("hubCookie").value.trim().replace(/^cookie\s*:\s*/i, "");
+    if (!cookie) {
+      showToast("请先粘贴 Cookie");
+      return;
+    }
+    hubState.cookie = cookie;
+    btn.dataset.busy = "1";
+    btn.textContent = "拉取中…";
+    try {
+      const req = Hub.xqListRequest();
+      const r = await hubNet(req);
+      if (r.status === 401 || r.status === 403)
+        throw new Hub.HubError("Cookie 已失效或未登录，请重新复制");
+      const terms = Hub.parseXqList(r.text || "");
+      if (!terms.length) throw new Hub.HubError("学期列表为空");
+      hubState.terms = terms;
+      const cur = Hub.pickCurrentTerm(terms, new Date().toISOString().slice(0, 10));
+      hubState.term = cur ? cur.term : terms[0].term;
+      const sel = $("hubTermSelect");
+      sel.innerHTML = terms
+        .map(
+          (t) =>
+            `<option value="${t.term}"${t.term === hubState.term ? " selected" : ""}>${escapeHtml(t.name)}</option>`,
+        )
+        .join("");
+      $("hubStepCookie").hidden = true;
+      $("hubStepTerm").hidden = false;
+      btn.textContent = "拉取课表";
+    } catch (e) {
+      showToast(e && e.message ? e.message : "拉取失败", 8000);
+    } finally {
+      btn.dataset.busy = "";
+      if ($("hubStepPreview").hidden && !$("hubStepTerm").hidden)
+        btn.textContent = "拉取课表";
+      else btn.textContent = "拉取学期列表";
+    }
+    return;
+  }
+  // 第 2 步：学期 → 课表解析预览
+  hubState.term = $("hubTermSelect").value;
+  btn.dataset.busy = "1";
+  btn.textContent = "拉取中…";
+  try {
+    const req = Hub.courseRequest(hubState.term);
+    const r = await hubNet(req);
+    if (r.status === 401 || r.status === 403)
+      throw new Hub.HubError("Cookie 已失效或未登录，请重新复制");
+    const p = Hub.parseCourse(r.text || "");
+    hubState.parsed = p;
+    const warnHtml = p.warnings.length
+      ? `<br><small style="opacity:.75">⚠ ${p.warnings.length} 条排课被忽略：<br>${p.warnings.map(escapeHtml).join("<br>")}</small>`
+      : "";
+    $("hubPreview").innerHTML =
+      `<b>${escapeHtml(p.scheduleName)}</b><br>` +
+      `${p.courses.length} 门课程，学期开始 ${p.termStart}，共 ${p.totalWeeks} 周` +
+      warnHtml;
+    $("hubStepTerm").hidden = true;
+    $("hubStepPreview").hidden = false;
+    btn.textContent = "导入为新课表";
+  } catch (e) {
+    showToast(e && e.message ? e.message : "拉取失败", 8000);
+  } finally {
+    btn.dataset.busy = "";
+    if (!$("hubStepPreview").hidden) btn.textContent = "导入为新课表";
+    else if (!$("hubStepTerm").hidden) btn.textContent = "拉取课表";
+    else btn.textContent = "拉取学期列表";
+  }
 }
 
 async function handleImportText(text, name) {
@@ -2365,6 +2498,7 @@ function bindEvents() {
       : where;
     showToast(`已保存到 ${whereText}`, 4000);
   };
+  $("btnHubNext").onclick = () => hubNext();
   $("btnImportCode").onclick = async () => {
     const code = $("codeInput").value.trim();
     if (!code) {

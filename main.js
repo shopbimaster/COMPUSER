@@ -117,6 +117,21 @@ ipcMain.handle('autostart:set', (_e, on) => {
   return app.getLoginItemSettings().openAtLogin;
 });
 
+// 教务导入：主进程代理 HTTP GET（Chromium 网络栈，无渲染进程 CORS 限制）
+// 只支持 GET、返回 {status, text, error}；语义（Cookie 校验/学期选择）由渲染进程 core 决定
+ipcMain.handle('net:get', async (_e, payload) => {
+  const url = String((payload && payload.url) || '');
+  if (!/^https?:\/\//i.test(url)) return { ok: false, status: 0, text: '', error: '仅支持 http(s) 地址' };
+  const headers = Object.assign({ Accept: 'application/json, text/plain, */*' }, (payload && payload.headers) || {});
+  try {
+    const r = await fetch(url, { method: 'GET', headers, redirect: 'follow', signal: AbortSignal.timeout(15000) });
+    const text = await r.text();
+    return { ok: r.ok, status: r.status, text };
+  } catch (e) {
+    return { ok: false, status: 0, text: '', error: String((e && e.cause && e.cause.message) || e.message || e) };
+  }
+});
+
 app.whenReady().then(() => {
   ensureDataFile();
   createWindow();
