@@ -2049,7 +2049,19 @@ body.course-drag-active {
   box-shadow: var(--shadow);
   padding: 6px;
   white-space: nowrap;
-  animation: pop 0.15s ease-out;
+  /* 专用入场动画：pop 的 transform 关键帧会整体覆盖菜单自身的 translateX(-50%)，
+     导致动画期间偏在右下、结束瞬间闪回正中 */
+  animation: popMenu 0.15s ease-out;
+}
+@keyframes popMenu {
+  from {
+    transform: translateX(-50%) scale(0.96) translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) scale(1) translateY(0);
+    opacity: 1;
+  }
 }
 .day-menu button {
   display: block;

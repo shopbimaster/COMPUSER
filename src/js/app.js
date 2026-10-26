@@ -686,7 +686,6 @@ function attachCourseDrag(el, c, sl) {
     drag = null;
     suppressNextClick = true; // 拖动后的合成 click 不打开详情
     const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
     let colEl = null;
     for (const cEl of document.querySelectorAll("#grid .day-col")) {
       const r = cEl.getBoundingClientRect();
@@ -699,11 +698,25 @@ function attachCourseDrag(el, c, sl) {
     const s = currentSettings();
     const axis = buildTimeAxis(s, gapPx);
     const colRect = colEl.getBoundingClientRect();
-    const toStart = Math.min(
-      s.classNum,
-      hitSection(cy - colRect.top, axis, gapPx) + 1,
-    );
-    openAdjustMoveModal(c, sl, Number(colEl.dataset.day), toStart);
+    const toDay = Number(colEl.dataset.day);
+    // 目标起始节 = 与块覆盖区间重叠像素最多的整课程格（块压到哪几节多就吸到哪），
+    // 而非按顶边/中心单点命中
+    const y0 = rect.top - colRect.top;
+    const y1 = rect.bottom - colRect.top;
+    let toStart = 1;
+    let bestOv = -1;
+    for (let k = 1; k + sl.step - 1 <= s.classNum; k++) {
+      const g0 = axis.rows[k - 1].y0;
+      const g1 = axis.rows[k + sl.step - 2].y1;
+      const ov = Math.min(y1, g1) - Math.max(y0, g0);
+      if (ov > bestOv) {
+        bestOv = ov;
+        toStart = k;
+      }
+    }
+    // 落点仍在原位（同天同起始节）→ 不弹调课选项，静默复位
+    if (toDay === sl.day && toStart === sl.start) return;
+    openAdjustMoveModal(c, sl, toDay, toStart);
   };
 
   const pressMove = (x, y) => {
