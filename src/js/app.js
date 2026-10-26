@@ -354,7 +354,10 @@ function buildTapBlock(col, axis, day, start, step, g, itemHeight) {
         }
       } else {
         // 顶边跟手：上滑延长、下滑缩短，末节不变
-        const s2 = Math.max(1, Math.min(tapSel.start + delta, tapSel.start + tapSel.step - 1));
+        const s2 = Math.max(
+          1,
+          Math.min(tapSel.start + delta, tapSel.start + tapSel.step - 1),
+        );
         if (s2 !== tapSel.start) {
           tapSel.step = tapSel.start + tapSel.step - s2;
           tapSel.start = s2;
@@ -696,7 +699,10 @@ function attachCourseDrag(el, c, sl) {
     const s = currentSettings();
     const axis = buildTimeAxis(s, gapPx);
     const colRect = colEl.getBoundingClientRect();
-    const toStart = Math.min(s.classNum, hitSection(cy - colRect.top, axis, gapPx) + 1);
+    const toStart = Math.min(
+      s.classNum,
+      hitSection(cy - colRect.top, axis, gapPx) + 1,
+    );
     openAdjustMoveModal(c, sl, Number(colEl.dataset.day), toStart);
   };
 
@@ -706,7 +712,10 @@ function attachCourseDrag(el, c, sl) {
       return;
     }
     // 未进入拖动的移动超容差 → 取消长按（放行滚动/周切换）
-    if (Math.abs(x - pressX) > DRAG_JITTER || Math.abs(y - pressY) > DRAG_JITTER)
+    if (
+      Math.abs(x - pressX) > DRAG_JITTER ||
+      Math.abs(y - pressY) > DRAG_JITTER
+    )
       cancelPress();
   };
 
@@ -768,7 +777,7 @@ function attachCourseDrag(el, c, sl) {
   el.addEventListener("mouseleave", () => {
     if (!drag) cancelPress();
   });
-}// ---------- 顶栏与周数面板 ----------
+} // ---------- 顶栏与周数面板 ----------
 function weekStatusText() {
   const s = currentSettings();
   const cur = calcCurrentWeek();
@@ -1980,7 +1989,7 @@ async function doExportAction(act) {
         Ics.toIcs(sch),
         `${BRAND.EXPORT_PREFIX}-${base}-${dateStamp()}.ics`,
       );
-}
+    }
   } catch (e) {
     // 保存失败必须给出详细报错（与导入诊断同级），不静默吞掉
     showToast(`保存失败：${e?.message || String(e)}`, 8000);
@@ -1995,7 +2004,6 @@ async function doExportAction(act) {
 }
 
 async function doImportAction(act) {
-
   const r = await Ports.share.receive();
   if (!r) return;
   if (r.error) {
@@ -2009,18 +2017,23 @@ async function doImportAction(act) {
 // ---------- 拖动调课确认窗 ----------
 let pendingAdjust = null; // { course, slot, toDay, toStart }
 
-const DAY_CN = { 1: "周一", 2: "周二", 3: "周三", 4: "周四", 5: "周五", 6: "周六", 7: "周日" };
+const DAY_CN = {
+  1: "周一",
+  2: "周二",
+  3: "周三",
+  4: "周四",
+  5: "周五",
+  6: "周六",
+  7: "周日",
+};
 
 function openAdjustMoveModal(course, slot, toDay, toStart) {
   const endSec = slot.start + slot.step - 1;
   pendingAdjust = { course, slot, toDay, toStart };
-  // 信息布局：课程名 + 两个时间各自占行（标签小字 + 选择框样式块，全部居中）
   $("adjustMoveDetail").innerHTML =
-    `<div class="am-name">将「<b>${escapeHtml(course.name)}</b>」</div>` +
-    `<div class="am-tag">从</div>` +
-    `<div class="am-box">${DAY_CN[slot.day] || slot.day} 第 ${slot.start}-${endSec} 节 · 第 ${slot.startWeek}~${slot.endWeek} 周</div>` +
-    `<div class="am-tag">调到</div>` +
-    `<div class="am-box">${DAY_CN[toDay] || toDay} 第 ${toStart}-${toStart + slot.step - 1} 节</div>`;
+    `<div>将「<b>${escapeHtml(course.name)}</b>」</div>` +
+    `<div class="adj-time-box">从 ${DAY_CN[slot.day] || slot.day} 第 ${slot.start}-${endSec} 节（第 ${slot.startWeek}~${slot.endWeek} 周）</div>` +
+    `<div class="adj-time-box">调到 ${DAY_CN[toDay] || toDay} 第 ${toStart}-${toStart + slot.step - 1} 节</div>`;
   openModal("adjustMoveModal");
 }
 
@@ -2036,11 +2049,16 @@ function applyAdjustMove(mode) {
     showToast("位置未变化");
     return;
   }
-  if (mode === "one") Adj.moveSlotOneWeek(course, idx, viewWeek, toDay, toStart, slot.step);
+  if (mode === "one")
+    Adj.moveSlotOneWeek(course, idx, viewWeek, toDay, toStart, slot.step);
   else Adj.moveSlotAll(course, idx, toDay, toStart, slot.step);
   touchSchedule();
   persist().then(() => render());
-  showToast(mode === "one" ? `已调整第 ${viewWeek} 周的该节课程` : "已调整该时间段的所有周次");
+  showToast(
+    mode === "one"
+      ? `已调整第 ${viewWeek} 周的该节课程`
+      : "已调整该时间段的所有周次",
+  );
 }
 
 // ---------- 整日调课 ----------
@@ -2075,11 +2093,9 @@ function initSrSelect(ids) {
   btn.onclick = () => {
     menu.hidden = !menu.hidden;
     if (!menu.hidden) {
-      document
-        .querySelectorAll(".dd-fixed")
-        .forEach((m) => {
-          if (m !== menu) m.hidden = true;
-        });
+      document.querySelectorAll(".dd-fixed").forEach((m) => {
+        if (m !== menu) m.hidden = true;
+      });
       const cur = menu.querySelector("button.sel");
       if (cur) cur.scrollIntoView({ block: "nearest" });
       // 定位：水平以触发按钮中心对齐（钳制在屏内），默认下方展开，空间不足向上翻
@@ -2152,7 +2168,8 @@ function openAdjustDayModal(day, dateIso) {
     initSrSelect(ids);
     $(ids[1]).innerHTML = Array.from(
       { length: s.totalWeeks },
-      (_, i) => `<button type="button" data-val="${i + 1}">第${i + 1}周</button>`,
+      (_, i) =>
+        `<button type="button" data-val="${i + 1}">第${i + 1}周</button>`,
     ).join("");
   }
   for (const ids of dayIds) {
@@ -2196,11 +2213,20 @@ function openAdjustDayModal(day, dateIso) {
 
 function confirmAdjustDay() {
   const s = currentSettings();
-  const byDate = document.querySelector('input[name="adjMode"]:checked').value === "date";
+  const byDate =
+    document.querySelector('input[name="adjMode"]:checked').value === "date";
   let fromW, fromD, toW, toD;
   if (byDate) {
-    const f = Adj.weekDayOfDate(s.termStart, $("adjFromDate").value, s.totalWeeks);
-    const t = Adj.weekDayOfDate(s.termStart, $("adjToDate").value, s.totalWeeks);
+    const f = Adj.weekDayOfDate(
+      s.termStart,
+      $("adjFromDate").value,
+      s.totalWeeks,
+    );
+    const t = Adj.weekDayOfDate(
+      s.termStart,
+      $("adjToDate").value,
+      s.totalWeeks,
+    );
     if (!f || !t) {
       showToast("所选日期超出课表范围");
       return;
@@ -2232,7 +2258,10 @@ function confirmAdjustDay() {
   const toTxt = byDate
     ? $("adjToDate").value.slice(5)
     : `第${toW}周${DAY_CN[toD]}`;
-  showToast(`已将 ${fromTxt} 的 ${r.moved} 节课（${r.courses} 门）调整到 ${toTxt}`, 4000);
+  showToast(
+    `已将 ${fromTxt} 的 ${r.moved} 节课（${r.courses} 门）调整到 ${toTxt}`,
+    4000,
+  );
 }
 async function handleImportText(text, name) {
   // CSV → 课程导入当前课表
@@ -2513,7 +2542,10 @@ function bindEvents() {
         // commit 按最终位移方向确定目标周（中途反悔换方向以终点为准）；越界则弹回
         const dir = dx < 0 ? 1 : -1;
         const finalTarget = viewWeek + dir;
-        if (commit && (finalTarget < 1 || finalTarget > currentSettings().totalWeeks))
+        if (
+          commit &&
+          (finalTarget < 1 || finalTarget > currentSettings().totalWeeks)
+        )
           commit = false;
         track.classList.add("sliding");
         track.style.transform = commit
@@ -2610,7 +2642,8 @@ function bindEvents() {
   $("btnAdjustOne").onclick = () => applyAdjustMove("one");
   $("btnAdjustAll").onclick = () => applyAdjustMove("all");
   // 整日调课
-  $("btnAdjustDay").onclick = confirmAdjustDay;  $("btnConfirmImport").onclick = confirmImportChoice;
+  $("btnAdjustDay").onclick = confirmAdjustDay;
+  $("btnConfirmImport").onclick = confirmImportChoice;
   $("btnConfirmIcsFormat").onclick = confirmIcsFormat;
   // 导入设置统一询问：沿用当前设置（白名单覆盖 + 时间表深拷贝）或保留文件自带
   $("btnUseCurrentSettings").onclick = () => {
