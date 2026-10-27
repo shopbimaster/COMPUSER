@@ -380,6 +380,7 @@ function buildTapBlock(col, axis, day, start, step, g, itemHeight) {
   });
   tapSel = { day, start, step, el };
   col.appendChild(el);
+  haptic(); // 开始加课（选中块出现）：短暂震动反馈
 }
 
 // 渲染任意周到任意网格容器（主 grid 或三页滑动轨道的相邻页 gridL/gridR）
@@ -660,10 +661,16 @@ function buildCourseBlock(e, isCurrent, axis, gap) {
 }
 
 // ---------- 课程长按拖动调课 ----------
-const DRAG_PRESS_MS = 550; // 长按进入拖动的判定时长（原 420ms 误判快速点按，加长留余量）
+const DRAG_PRESS_MS = 1000; // 长按进入拖动的判定时长（用户权威：1 秒，彻底区分点击与拖动）
 const DRAG_JITTER = 10; // 按下后的抖动容差：位移超此值取消长按（放行滚动）
+const DRAG_MIN_MOVE = 12; // 进入拖动后的最小有效位移（px）：低于此值释放视为误触，静默复位不弹调课
 // 拖动释放后短暂吞「同一块」的合成 click（替代旧全局布尔：跨块误吞其他课程详情）
 let suppressClick = null;
+
+// 触觉反馈：手机端进入拖动/开始加课时短暂震动（桌面无 vibrate 自动跳过）
+function haptic() {
+  if (navigator.vibrate) navigator.vibrate(30);
+}
 
 function attachCourseDrag(el, c, sl) {
   let pressTimer = null;
@@ -683,6 +690,7 @@ function attachCourseDrag(el, c, sl) {
     drag = { x0: x, y0: y };
     el.classList.add("dragging");
     document.body.classList.add("course-drag-active"); // 拖动中禁文本选择
+    haptic(); // 进入拖动：短暂震动反馈
   };
 
   const updateDrag = (x, y) => {
@@ -701,10 +709,14 @@ function attachCourseDrag(el, c, sl) {
   };
 
   const finishDrag = (x, y) => {
+    // 最小位移守卫：进入拖动后基本没动（<12px）→ 视为长按误触，静默复位不弹调课窗
+    // （兜住「点击详情/退出详情时手指停在课程上略久」误激活拖动的场景）
+    const moved = drag ? Math.hypot(x - drag.x0, y - drag.y0) : 0;
     // 释放点 = 拖动中的块中心：必须先取 rect 再复位 transform，否则读回原位
     const rect = el.getBoundingClientRect();
     cleanupDrag();
     suppressClick = { el, t: Date.now() }; // 拖动后的合成 click 不打开详情（仅限本块）
+    if (moved < DRAG_MIN_MOVE) return;
     const cx = rect.left + rect.width / 2;
     let colEl = null;
     for (const cEl of document.querySelectorAll("#grid .day-col")) {
