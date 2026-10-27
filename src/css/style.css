@@ -392,6 +392,10 @@ select option {
      --col-bg-a 由设置（显示列衬底/不透明度）驱动，0 即关闭 */
   background-color: rgba(var(--blend-card), var(--col-bg-a, 0));
 }
+/* 深色衬底：黑色按同一不透明度叠加在渐变背景上 → 相对背景变深（浅/深主题通用） */
+.grid.col-bg-dark .day-col {
+  background-color: rgba(0, 0, 0, var(--col-bg-a, 0));
+}
 .day-col:hover {
   background: rgba(255, 255, 255, 0.25);
 }

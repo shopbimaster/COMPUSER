@@ -51,6 +51,7 @@
     headerTextSize: 15,     // 表头星期文字大小 10-16
     showColBg: true,        // 日列衬底（仿 v1.1：整列铺卡片色，列间缝隙形成分隔）
     colBgAlpha: 25,         // 衬底不透明度 10-100
+    colBgDark: false,       // 衬底深浅：false=浅色（比背景浅的卡片色）/ true=深色（黑色叠加比背景深）
     sundayFirst: false,
     sameLen: false,         // 每节课时长相同
     courseTextSize: IS_ANDROID ? 10 : 12, // 格子内课程文字大小 9-16（安卓出厂 10）
@@ -96,6 +97,7 @@
     s.showWeekTitle = s.showWeekTitle !== false && s.showWeekTitle !== 'false';
     s.showColBg = s.showColBg !== false && s.showColBg !== 'false';
     s.colBgAlpha = clamp(Number(s.colBgAlpha) || DEFAULT_SETTINGS.colBgAlpha, 10, 100);
+    s.colBgDark = !!s.colBgDark && s.colBgDark !== 'false';
     s.sundayFirst = !!s.sundayFirst;
     s.courseTextSize = clamp(
       Number(s.courseTextSize) || DEFAULT_SETTINGS.courseTextSize,

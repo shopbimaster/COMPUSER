@@ -395,11 +395,16 @@ function renderInto(gridEl, week, opts = {}) {
   );
 
   gridEl.style.setProperty("--day-count", visibleDays.length);
-  // 列衬底：课表为空时不铺（避免空表满屏白色列底）
+  // 列衬底：课表为空时不铺（避免空表满屏白色列底）；
+  // 深色模式切换 class（浅色=卡片色比背景浅 / 深色=黑色叠加比背景深）
   const hasCourses = currentSchedule().courses.length > 0;
   gridEl.style.setProperty(
     "--col-bg-a",
     hasCourses && s.showColBg ? s.colBgAlpha / 100 : 0,
+  );
+  gridEl.classList.toggle(
+    "col-bg-dark",
+    hasCourses && s.showColBg && !!s.colBgDark,
   );
   gridEl.style.setProperty("--header-fs", s.headerTextSize + "px");
   gridEl.style.setProperty("--ow-alpha", s.otherWeekAlpha / 100);
@@ -1701,9 +1706,36 @@ function openSettings() {
   $("s_itemHeight").value = s.itemHeight;
   $("heightVal").textContent = s.itemHeight + "px";
   $("s_showColBg").checked = s.showColBg;
+  $("rowColBgDark").hidden = !s.showColBg;
   $("rowColBgAlpha").hidden = !s.showColBg;
   $("s_colBgAlpha").value = s.colBgAlpha;
   $("colBgAlphaVal").textContent = s.colBgAlpha + "%";
+  // 衬底深浅自绘下拉（light=浅色比背景浅 / dark=深色比背景深）
+  const bgdNames = { light: "浅色", dark: "深色" };
+  const cbBtn = $("s_colBgDarkBtn");
+  const cbMenu = $("s_colBgDarkMenu");
+  const cbHidden = $("s_colBgDark");
+  cbHidden.value = s.colBgDark ? "dark" : "light";
+  cbBtn.textContent = bgdNames[cbHidden.value] || "浅色";
+  cbMenu.innerHTML = ["light", "dark"]
+    .map(
+      (v) =>
+        `<button type="button" data-bgd="${v}" class="${v === cbHidden.value ? "sel" : ""}">${bgdNames[v]}</button>`,
+    )
+    .join("");
+  cbBtn.onclick = () => {
+    cbMenu.hidden = !cbMenu.hidden;
+  };
+  cbMenu.onclick = (e) => {
+    const b = e.target.closest("button[data-bgd]");
+    if (!b) return;
+    cbHidden.value = b.dataset.bgd;
+    cbBtn.textContent = bgdNames[b.dataset.bgd] || "浅色";
+    cbMenu.hidden = true;
+    cbMenu
+      .querySelectorAll("button[data-bgd]")
+      .forEach((x) => x.classList.toggle("sel", x === b));
+  };
   $("s_showOtherWeek").checked = s.showOtherWeek;
   $("s_showSchName").checked = s.showSchName;
   $("s_showWeekTitle").checked = s.showWeekTitle;
@@ -1802,6 +1834,7 @@ function collectSettings() {
   s.itemHeight = Number($("s_itemHeight").value);
   s.showColBg = $("s_showColBg").checked;
   s.colBgAlpha = Number($("s_colBgAlpha").value);
+  s.colBgDark = $("s_colBgDark").value === "dark";
   s.showOtherWeek = $("s_showOtherWeek").checked;
   s.showSchName = $("s_showSchName").checked;
   s.showWeekTitle = $("s_showWeekTitle").checked;
@@ -2505,6 +2538,15 @@ function bindEvents() {
       "touchmove",
       (e) => {
         if (dead || e.touches.length !== 1) return;
+        // 课程块长按拖动中：禁用周翻页识别（否则块与轨道同向跟手呈二倍速偏移）
+        if (document.body.classList.contains("course-drag-active")) {
+          if (swiping) {
+            swiping = false;
+            track.style.transform = HOME; // 已误入跟手则立即弹回
+          }
+          dead = true;
+          return;
+        }
         const x = e.touches[0].clientX;
         const y = e.touches[0].clientY;
         const dx = x - sx;
@@ -2875,6 +2917,7 @@ function bindEvents() {
   $("s_itemHeight").oninput = (e) =>
     ($("heightVal").textContent = e.target.value + "px");
   $("s_showColBg").onchange = (e) => {
+    $("rowColBgDark").hidden = !e.target.checked;
     $("rowColBgAlpha").hidden = !e.target.checked;
   };
   $("s_colBgAlpha").oninput = (e) =>
