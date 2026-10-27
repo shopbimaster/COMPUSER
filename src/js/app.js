@@ -637,9 +637,14 @@ function buildCourseBlock(e, isCurrent, axis, gap) {
     `${c.name} ${sl.room ? "@" + sl.room : ""} ${sl.teach ? sl.teach + " 老师" : ""}`.trim();
   el.addEventListener("click", (ev) => {
     ev.stopPropagation();
-    // 拖动调课结束后的合成 click 不打开详情
-    if (suppressNextClick) {
-      suppressNextClick = false;
+    // 拖动调课结束后的合成 click 不打开详情：仅吞「同一块 + 短时间窗」内的 click，
+    // 避免全局开关误吞拖动期间其他课程的正常点击（详情打不开）
+    if (
+      suppressClick &&
+      suppressClick.el === el &&
+      Date.now() - suppressClick.t < 500
+    ) {
+      suppressClick = null;
       return;
     }
     // 手机端选中加课状态下点课程：仅取消选中，不打开详情
@@ -655,8 +660,10 @@ function buildCourseBlock(e, isCurrent, axis, gap) {
 }
 
 // ---------- 课程长按拖动调课 ----------
-const DRAG_PRESS_MS = 420; // 长按进入拖动的判定时长
+const DRAG_PRESS_MS = 550; // 长按进入拖动的判定时长（原 420ms 误判快速点按，加长留余量）
 const DRAG_JITTER = 10; // 按下后的抖动容差：位移超此值取消长按（放行滚动）
+// 拖动释放后短暂吞「同一块」的合成 click（替代旧全局布尔：跨块误吞其他课程详情）
+let suppressClick = null;
 
 function attachCourseDrag(el, c, sl) {
   let pressTimer = null;
@@ -697,7 +704,7 @@ function attachCourseDrag(el, c, sl) {
     // 释放点 = 拖动中的块中心：必须先取 rect 再复位 transform，否则读回原位
     const rect = el.getBoundingClientRect();
     cleanupDrag();
-    suppressNextClick = true; // 拖动后的合成 click 不打开详情
+    suppressClick = { el, t: Date.now() }; // 拖动后的合成 click 不打开详情（仅限本块）
     const cx = rect.left + rect.width / 2;
     let colEl = null;
     for (const cEl of document.querySelectorAll("#grid .day-col")) {
@@ -737,7 +744,7 @@ function attachCourseDrag(el, c, sl) {
   const cancelDrag = () => {
     if (!drag) return;
     cleanupDrag();
-    suppressNextClick = true;
+    suppressClick = { el, t: Date.now() };
   };
 
   const pressMove = (x, y) => {
@@ -756,9 +763,9 @@ function attachCourseDrag(el, c, sl) {
   el.addEventListener(
     "touchstart",
     (e) => {
+      cancelPress(); // 任何新触摸（含多点）先清长按定时，防残留误判拖动
       if (e.touches.length !== 1) return;
       const t = e.touches[0];
-      cancelPress();
       pressX = t.clientX;
       pressY = t.clientY;
       pressTimer = setTimeout(() => beginDrag(pressX, pressY), DRAG_PRESS_MS);
