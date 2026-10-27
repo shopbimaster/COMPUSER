@@ -679,16 +679,24 @@ function attachCourseDrag(el, c, sl) {
   };
 
   const updateDrag = (x, y) => {
+    if (!drag) return;
     el.style.transform = `translate(${x - drag.x0}px, ${y - drag.y0}px)`;
+  };
+
+  // 统一收尾：清拖动态 class/transform/全局鼠标监听（正常释放与异常中断共用，杜绝悬空残留）
+  const cleanupDrag = () => {
+    drag = null;
+    el.classList.remove("dragging");
+    document.body.classList.remove("course-drag-active");
+    el.style.transform = "";
+    window.removeEventListener("mousemove", onWinMouseMove);
+    window.removeEventListener("mouseup", onWinMouseUp);
   };
 
   const finishDrag = (x, y) => {
     // 释放点 = 拖动中的块中心：必须先取 rect 再复位 transform，否则读回原位
     const rect = el.getBoundingClientRect();
-    el.classList.remove("dragging");
-    document.body.classList.remove("course-drag-active");
-    el.style.transform = "";
-    drag = null;
+    cleanupDrag();
     suppressNextClick = true; // 拖动后的合成 click 不打开详情
     const cx = rect.left + rect.width / 2;
     let colEl = null;
@@ -724,6 +732,14 @@ function attachCourseDrag(el, c, sl) {
     openAdjustMoveModal(c, sl, toDay, toStart);
   };
 
+  // 异常中断（系统截图/来电/手势打断 → touchcancel，或窗口失焦/页面隐藏）：
+  // 静默回弹原位，不弹调课窗——否则 drag 状态与 transform 残留，课程块悬空
+  const cancelDrag = () => {
+    if (!drag) return;
+    cleanupDrag();
+    suppressNextClick = true;
+  };
+
   const pressMove = (x, y) => {
     if (drag) {
       updateDrag(x, y);
@@ -752,14 +768,16 @@ function attachCourseDrag(el, c, sl) {
   el.addEventListener(
     "touchmove",
     (e) => {
-      if (e.touches.length !== 1) return;
-      const t = e.touches[0];
-      if (drag) {
-        e.preventDefault(); // 拖动中禁止页面滚动
-        updateDrag(t.clientX, t.clientY);
+      if (!drag) {
+        if (e.touches.length !== 1) return;
+        const t = e.touches[0];
+        pressMove(t.clientX, t.clientY);
         return;
       }
-      pressMove(t.clientX, t.clientY);
+      e.preventDefault(); // 拖动中禁止页面滚动
+      // 多点容错：始终跟第一指（拖快时误触第二指不卡住、不跳变）
+      const t = e.touches[0] || e.changedTouches[0];
+      if (t) updateDrag(t.clientX, t.clientY);
     },
     { passive: false },
   );
@@ -769,31 +787,43 @@ function attachCourseDrag(el, c, sl) {
       cancelPress();
       if (!drag) return;
       const t = e.changedTouches[0];
-      const x = t ? t.clientX : pressX;
-      const y = t ? t.clientY : pressY;
-      drag = null;
-      finishDrag(x, y);
+      finishDrag(t ? t.clientX : pressX, t ? t.clientY : pressY);
     },
     { passive: true },
   );
+  el.addEventListener("touchcancel", cancelDrag);
   el.addEventListener("mousedown", (e) => {
     if (e.button !== 0) return;
     cancelPress();
     pressX = e.clientX;
     pressY = e.clientY;
-    pressTimer = setTimeout(() => beginDrag(pressX, pressY), DRAG_PRESS_MS);
+    pressTimer = setTimeout(() => {
+      beginDrag(pressX, pressY);
+      // 拖动中鼠标监听升级到 window：拖太快指针跑出元素，事件不再丢失
+      window.addEventListener("mousemove", onWinMouseMove);
+      window.addEventListener("mouseup", onWinMouseUp);
+    }, DRAG_PRESS_MS);
   });
-  const onMouseMove = (e) => pressMove(e.clientX, e.clientY);
-  const onMouseUp = (e) => {
+  const onWinMouseMove = (e) => updateDrag(e.clientX, e.clientY);
+  const onWinMouseUp = (e) => {
     cancelPress();
     if (!drag) return;
-    drag = null;
     finishDrag(e.clientX, e.clientY);
   };
-  el.addEventListener("mousemove", onMouseMove);
-  el.addEventListener("mouseup", onMouseUp);
+  el.addEventListener("mousemove", (e) => pressMove(e.clientX, e.clientY)); // 未拖动：容差取消长按
   el.addEventListener("mouseleave", () => {
     if (!drag) cancelPress();
+  });
+  // 窗口失焦/页面隐藏（任务栏截图、alt-tab 等）：取消长按与拖动，回弹防悬空
+  window.addEventListener("blur", () => {
+    cancelPress();
+    cancelDrag();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      cancelPress();
+      cancelDrag();
+    }
   });
 } // ---------- 顶栏与周数面板 ----------
 function weekStatusText() {
