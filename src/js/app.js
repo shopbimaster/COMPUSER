@@ -1478,6 +1478,27 @@ function saveCourseFromForm() {
     );
     if (i >= 0) currentSchedule().courses[i] = c;
   } else {
+    // 课程名即唯一性标识：新加课程与已有课程同名 → 时间段自动并入该课程
+    // （normalizeCourse 内做段去重/周次并集/相邻拼接），避免同一门课出现多个条目
+    const name = (c.name || "").trim();
+    const twin =
+      name &&
+      currentSchedule().courses.find(
+        (x) => (x.name || "").trim() === name,
+      );
+    if (twin) {
+      twin.timeSlots = M.normalizeCourse({
+        name: twin.name,
+        timeSlots: [...twin.timeSlots, ...c.timeSlots],
+      }).timeSlots;
+      twin.updatedAt = Date.now();
+      touchSchedule();
+      persist();
+      closeModal("courseModal");
+      render();
+      showToast(`已合并到同名课程「${twin.name}」`);
+      return;
+    }
     currentSchedule().courses.push(c);
   }
   touchSchedule();
@@ -2174,6 +2195,21 @@ function openDayAdjustMenu(headerEl, day, dateIso) {
   });
   menu.appendChild(btn);
   headerEl.appendChild(menu);
+  // 防出界：默认水平居中（CSS left:50%+translateX），最右/最左列的菜单可能超出屏幕。
+  // 用 offsetWidth+header 几何计算（入场动画的 transform 会干扰 getBoundingClientRect），
+  // 超出则改为贴该列边缘对齐（transform 同时清掉避免错位）
+  const mw = menu.offsetWidth;
+  const hr = headerEl.getBoundingClientRect();
+  const menuLeft = hr.left + hr.width / 2 - mw / 2;
+  if (menuLeft + mw > window.innerWidth - 8) {
+    menu.style.transform = "none";
+    menu.style.left = "auto";
+    menu.style.right = "0";
+  } else if (menuLeft < 8) {
+    menu.style.transform = "none";
+    menu.style.left = "0";
+    menu.style.right = "auto";
+  }
 }
 
 // 自绘下拉（与设置页「一天课程节数」同款标准）：触发按钮 + 滚动面板 + hidden 承值
@@ -2732,8 +2768,9 @@ function bindEvents() {
         d.hidden = true;
       });
     }
-    // 点空白处收起整日调课入口（在菜单按钮上点则由其自身处理器处理）
-    if (!e.target.closest(".day-menu") && !e.target.closest(".day-header")) {
+    // 点任何非菜单区域都收起整日调课入口（含课表区域/标题栏）；
+    // 点另一天标题栏：先冒泡到其自身处理器弹出新菜单，此处 .day-menu 豁免保留新菜单
+    if (!e.target.closest(".day-menu")) {
       document.querySelectorAll(".day-menu").forEach((m) => m.remove());
     }
   });

@@ -144,3 +144,105 @@ test('normalizeState: 深度规范化后 roundtrip 稳定', () => {
   const st2 = M.normalizeState(JSON.parse(JSON.stringify(st1)));
   assert.deepStrictEqual(st1, st2);
 });
+
+// ---------- 时间段同类项合并（课程名即身份，同名课并入后减少繁杂度） ----------
+const slotKey = (s) => `${s.day}/${s.start}-${s.start + s.step - 1}/${s.weeks}/${s.room}/${s.teach}`;
+
+test('mergeSlots: 完全相同的段 → 去重为一段', () => {
+  const c = M.normalizeCourse({
+    name: '高等数学',
+    timeSlots: [
+      { day: 1, start: 3, step: 2, weeks: '111100001111' },
+      { day: 1, start: 3, step: 2, weeks: '111100001111' }
+    ]
+  });
+  assert.strictEqual(c.timeSlots.length, 1);
+  assert.strictEqual(c.timeSlots[0].weeks, '111100001111');
+});
+
+test('mergeSlots: 同时间同教室不同周次 → weeks 并集（连续/有洞）', () => {
+  // 1-6周 + 5-10周 → 1-10 周（并集连续）
+  const c1 = M.normalizeCourse({
+    name: '大学英语',
+    timeSlots: [
+      { day: 2, start: 1, step: 2, weeks: '111111000000', room: 'S101' },
+      { day: 2, start: 1, step: 2, weeks: '000011111100', room: 'S101' }
+    ]
+  });
+  assert.strictEqual(c1.timeSlots.length, 1);
+  assert.strictEqual(c1.timeSlots[0].weeks, '111111111100');
+  assert.strictEqual(c1.timeSlots[0].startWeek, 1);
+  assert.strictEqual(c1.timeSlots[0].endWeek, 10);
+  // 1-4周 + 6-10周 → 1-4、6-10（第5周洞保留）
+  const c2 = M.normalizeCourse({
+    name: '大学英语',
+    timeSlots: [
+      { day: 2, start: 1, step: 2, weeks: '111100000000', room: 'S101' },
+      { day: 2, start: 1, step: 2, weeks: '000001111100', room: 'S101' }
+    ]
+  });
+  assert.strictEqual(c2.timeSlots.length, 1);
+  assert.strictEqual(M.weeksLabel(c2.timeSlots[0].weeks), '第1-4、6-10周');
+});
+
+test('mergeSlots: 同周次同教室节次相邻 → 拼接为一段', () => {
+  const c = M.normalizeCourse({
+    name: '数据结构',
+    timeSlots: [
+      { day: 3, start: 3, step: 2, weeks: '111111111111', room: 'S201' },
+      { day: 3, start: 5, step: 2, weeks: '111111111111', room: 'S201' }
+    ]
+  });
+  assert.strictEqual(c.timeSlots.length, 1);
+  assert.strictEqual(c.timeSlots[0].start, 3);
+  assert.strictEqual(c.timeSlots[0].step, 4);
+});
+
+test('mergeSlots: 教室不同 / 周次不同的相邻段 → 不合并（防丢信息）', () => {
+  // 教室不同：时间相同也不并
+  const c1 = M.normalizeCourse({
+    name: '操作系统',
+    timeSlots: [
+      { day: 4, start: 3, step: 2, weeks: '111111111111', room: 'S301' },
+      { day: 4, start: 3, step: 2, weeks: '000000111111', room: 'S302' }
+    ]
+  });
+  assert.strictEqual(c1.timeSlots.length, 2);
+  // 周次不同的相邻节次：3-4节上1-8周、5-6节上9-16周 → 语义不同不拼
+  const c2 = M.normalizeCourse({
+    name: '操作系统',
+    timeSlots: [
+      { day: 4, start: 3, step: 2, weeks: '1111111100000000' },
+      { day: 4, start: 5, step: 2, weeks: '0000000011111111' }
+    ]
+  });
+  assert.strictEqual(c2.timeSlots.length, 2);
+});
+
+test('mergeSlots: 多段拼接后级联收敛（3-4+5-6+7-8 → 3-8）', () => {
+  const c = M.normalizeCourse({
+    name: '体育',
+    timeSlots: [
+      { day: 5, start: 3, step: 2, weeks: '111111111111' },
+      { day: 5, start: 7, step: 2, weeks: '111111111111' },
+      { day: 5, start: 5, step: 2, weeks: '111111111111' }
+    ]
+  });
+  assert.strictEqual(c.timeSlots.length, 1);
+  assert.strictEqual(c.timeSlots[0].start, 3);
+  assert.strictEqual(c.timeSlots[0].step, 6);
+});
+
+test('mergeSlots: 常规不同段互不干扰', () => {
+  const c = M.normalizeCourse({
+    name: '高等数学',
+    timeSlots: [
+      { day: 1, start: 3, step: 2, weeks: '111111111111', room: 'A' },
+      { day: 3, start: 3, step: 2, weeks: '111111111111', room: 'A' },
+      { day: 1, start: 6, step: 2, weeks: '111111111111', room: 'A' }
+    ]
+  });
+  assert.strictEqual(c.timeSlots.length, 3);
+  const keys = c.timeSlots.map(slotKey).sort();
+  assert.deepStrictEqual(keys, ['1/3-4/111111111111/A/', '1/6-7/111111111111/A/', '3/3-4/111111111111/A/'].sort());
+});

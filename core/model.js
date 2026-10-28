@@ -218,6 +218,74 @@
     return n % 10;
   }
 
+  // 两个位串按位或（长度不齐以长者为准，短者右补 0）——同键时间段合并周次用
+  function weeksOr(a, b) {
+    const n = Math.max(a.length, b.length);
+    let s = '';
+    for (let i = 0; i < n; i++) s += (a.charAt(i) === '1' || b.charAt(i) === '1') ? '1' : '0';
+    return s;
+  }
+
+  // 时间段同类项合并（课程名即身份，同名课时间段并入后减少繁杂度）。
+  // 键不同（教室/教师/周次差异）不合并，避免丢信息：
+  //   ① 完全相同的段 → 去重
+  //   ② day/start/step/room/teach 相同 → weeks 位串按位或（1-8周+9-16周 → 1-16周）
+  //   ③ day/weeks/room/teach 相同且节次相邻（3-4节+5-6节 → 3-6节）→ 拼接 step
+  // 循环直到不再变化（拼接可能产生新的相邻/重复）
+  function mergeSlots(list) {
+    let slots = list.slice();
+    let changed = true;
+    while (changed) {
+      changed = false;
+      const out = [];
+      for (const s of slots) {
+        // ② 同键（时间+教室+教师相同）→ weeks 并集；weeks 已相等则是完全重复，走 ① 去重
+        const twin = out.find(
+          (o) =>
+            o.day === s.day && o.start === s.start && o.step === s.step &&
+            o.room === s.room && o.teach === s.teach && o.weeks !== s.weeks
+        );
+        if (twin) {
+          twin.weeks = weeksOr(twin.weeks, s.weeks);
+          const d = deriveFromWeeks(twin.weeks); // 周次变 → 重派生兼容字段
+          twin.startWeek = d.startWeek;
+          twin.endWeek = d.endWeek;
+          twin.isOdd = d.isOdd;
+          changed = true;
+          continue;
+        }
+        // ① 完全相同 → 去重
+        if (
+          out.some(
+            (o) =>
+              o.day === s.day && o.start === s.start && o.step === s.step &&
+              o.weeks === s.weeks && o.room === s.room && o.teach === s.teach
+          )
+        ) {
+          changed = true;
+          continue;
+        }
+        // ③ 同周次同教室教师且节次相邻 → 拼接
+        const adj = out.find(
+          (o) =>
+            o.day === s.day && o.weeks === s.weeks &&
+            o.room === s.room && o.teach === s.teach &&
+            (o.start + o.step === s.start || s.start + s.step === o.start)
+        );
+        if (adj) {
+          const ns = Math.min(adj.start, s.start);
+          adj.step = Math.max(adj.start + adj.step, s.start + s.step) - ns;
+          adj.start = ns;
+          changed = true;
+          continue;
+        }
+        out.push(s);
+      }
+      slots = out;
+    }
+    return slots;
+  }
+
   function normalizeCourse(raw) {
     const r = raw || {};
     const slots = Array.isArray(r.timeSlots) ? r.timeSlots.filter(Boolean) : [];
@@ -228,7 +296,7 @@
       color: normalizeColor(r.color),
       credit: (r.credit === undefined || r.credit === null || r.credit === '') ? null : Math.max(0, Number(r.credit) || 0),
       note: String(r.note || '').trim(),
-      timeSlots: (slots.length ? slots : [{}]).map(normalizeSlot)
+      timeSlots: mergeSlots((slots.length ? slots : [{}]).map(normalizeSlot))
     };
   }
 
