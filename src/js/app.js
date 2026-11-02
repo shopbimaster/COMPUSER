@@ -672,7 +672,22 @@ function haptic() {
   if (navigator.vibrate) navigator.vibrate(30);
 }
 
+// 触摸优先设备（Android WebView / 触屏浏览器）：tap 会合成 mousedown/mouseup。
+// 若启用鼠标拖动路径，合成 mousedown 会在每次 tap 后重启长按定时器，1 秒后凭空
+// 激活「幽灵 drag」；随后用户在弹窗内点按钮的合成 mouseup 冒泡到 window 级监听，
+// finishDrag 以该按钮坐标命中下方课表格 → 弹出目标莫名的调课窗。
+// 触摸路径已完整覆盖拖动，触摸优先设备整体禁用鼠标路径。
+// 每次绑定课程块时求值（跟随 platform 运行时变化，也便于按平台分别测试）
+function isTouchOnly() {
+  return (
+    Ports.platform === "android" ||
+    (navigator.maxTouchPoints > 0 &&
+      window.matchMedia("(pointer: coarse)").matches)
+  );
+}
+
 function attachCourseDrag(el, c, sl) {
+  const touchOnly = isTouchOnly();
   let pressTimer = null;
   let pressX = 0;
   let pressY = 0;
@@ -691,6 +706,12 @@ function attachCourseDrag(el, c, sl) {
     el.classList.add("dragging");
     document.body.classList.add("course-drag-active"); // 拖动中禁文本选择
     haptic(); // 进入拖动：短暂震动反馈
+    // 鼠标拖动：监听升级到 window（拖太快指针跑出元素事件不丢）。
+    // 触摸设备不挂——合成 mouseup 会冒泡到 window 误触发 finishDrag（幽灵调课窗）
+    if (!touchOnly) {
+      window.addEventListener("mousemove", onWinMouseMove);
+      window.addEventListener("mouseup", onWinMouseUp);
+    }
   };
 
   const updateDrag = (x, y) => {
@@ -811,28 +832,32 @@ function attachCourseDrag(el, c, sl) {
     { passive: true },
   );
   el.addEventListener("touchcancel", cancelDrag);
-  el.addEventListener("mousedown", (e) => {
-    if (e.button !== 0) return;
-    cancelPress();
-    pressX = e.clientX;
-    pressY = e.clientY;
-    pressTimer = setTimeout(() => {
-      beginDrag(pressX, pressY);
-      // 拖动中鼠标监听升级到 window：拖太快指针跑出元素，事件不再丢失
-      window.addEventListener("mousemove", onWinMouseMove);
-      window.addEventListener("mouseup", onWinMouseUp);
-    }, DRAG_PRESS_MS);
-  });
+  if (!touchOnly) {
+    // 鼠标拖动路径（仅桌面）：触摸设备上 tap 合成的 mousedown/mouseup 会制造
+    // 幽灵 drag + 误触发 finishDrag，整条路径禁用（触摸路径已完整覆盖拖动）
+    el.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      cancelPress();
+      pressX = e.clientX;
+      pressY = e.clientY;
+      pressTimer = setTimeout(() => {
+        beginDrag(pressX, pressY);
+        // 拖动中鼠标监听升级到 window：拖太快指针跑出元素，事件不再丢失
+        window.addEventListener("mousemove", onWinMouseMove);
+        window.addEventListener("mouseup", onWinMouseUp);
+      }, DRAG_PRESS_MS);
+    });
+    el.addEventListener("mousemove", (e) => pressMove(e.clientX, e.clientY)); // 未拖动：容差取消长按
+    el.addEventListener("mouseleave", () => {
+      if (!drag) cancelPress();
+    });
+  }
   const onWinMouseMove = (e) => updateDrag(e.clientX, e.clientY);
   const onWinMouseUp = (e) => {
     cancelPress();
     if (!drag) return;
     finishDrag(e.clientX, e.clientY);
   };
-  el.addEventListener("mousemove", (e) => pressMove(e.clientX, e.clientY)); // 未拖动：容差取消长按
-  el.addEventListener("mouseleave", () => {
-    if (!drag) cancelPress();
-  });
   // 窗口失焦/页面隐藏（任务栏截图、alt-tab 等）：取消长按与拖动，回弹防悬空
   window.addEventListener("blur", () => {
     cancelPress();
