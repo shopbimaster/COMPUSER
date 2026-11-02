@@ -2220,21 +2220,14 @@ function openDayAdjustMenu(headerEl, day, dateIso) {
   });
   menu.appendChild(btn);
   headerEl.appendChild(menu);
-  // 防出界：默认水平居中（CSS left:50%+translateX），最右/最左列的菜单可能超出屏幕。
-  // 用 offsetWidth+header 几何计算（入场动画的 transform 会干扰 getBoundingClientRect），
-  // 超出则改为贴该列边缘对齐（transform 同时清掉避免错位）
+  // 水平定位全由 JS 计算并钳制屏内（CSS 不再 translateX 居中，避免与入场动画的
+  // transform 关键帧互相覆盖造成弹出瞬移）；左右列同样受钳制保护。
+  // 注意 style.left 相对 header 锚点：钳制后的视口坐标须减去 header 视口 left
   const mw = menu.offsetWidth;
   const hr = headerEl.getBoundingClientRect();
-  const menuLeft = hr.left + hr.width / 2 - mw / 2;
-  if (menuLeft + mw > window.innerWidth - 8) {
-    menu.style.transform = "none";
-    menu.style.left = "auto";
-    menu.style.right = "0";
-  } else if (menuLeft < 8) {
-    menu.style.transform = "none";
-    menu.style.left = "0";
-    menu.style.right = "auto";
-  }
+  let left = hr.left + hr.width / 2 - mw / 2;
+  left = Math.max(8, Math.min(left, window.innerWidth - mw - 8));
+  menu.style.left = left - hr.left + "px";
 }
 
 // 自绘下拉（与设置页「一天课程节数」同款标准）：触发按钮 + 滚动面板 + hidden 承值

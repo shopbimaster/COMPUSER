@@ -2045,25 +2045,24 @@ body.course-drag-active {
 .day-menu {
   position: absolute;
   top: calc(100% + 4px);
-  left: 50%;
-  transform: translateX(-50%);
+  /* 水平位置由 JS 计算并钳制屏内（openDayAdjustMenu 设置 style.left），
+     不用 CSS translateX 居中——动画 transform 会覆盖它造成弹出瞬移 */
   z-index: 40;
   background: var(--card);
   border-radius: 16px;
   box-shadow: var(--shadow);
   padding: 6px;
   white-space: nowrap;
-  /* 专用入场动画：pop 的 transform 关键帧会整体覆盖菜单自身的 translateX(-50%)，
-     导致动画期间偏在右下、结束瞬间闪回正中 */
+  /* 入场动画不含水平位移：结束态与无 transform 状态一致，无跳变 */
   animation: popMenu 0.15s ease-out;
 }
 @keyframes popMenu {
   from {
-    transform: translateX(-50%) scale(0.96) translateY(10px);
+    transform: scale(0.96) translateY(10px);
     opacity: 0;
   }
   to {
-    transform: translateX(-50%) scale(1) translateY(0);
+    transform: scale(1) translateY(0);
     opacity: 1;
   }
 }
