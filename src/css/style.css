@@ -442,6 +442,10 @@ select option {
   margin-bottom: 2px;
   align-self: flex-start;
   font-weight: 600;
+  /* 自定义时间的起止时间等长串：与课程名一致自动折行，不右溢格子 */
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .course-block .course-name {
   font-size: 1.04em;
@@ -451,7 +455,8 @@ select option {
 }
 .course-block .course-room,
 .course-block .course-teach {
-  font-size: 0.875em;
+  /* 次级信息比课程名再小 1px（calc 混合 em/px，随格子字号设置缩放） */
+  font-size: calc(0.875em - 1px);
   opacity: 0.95;
   overflow-wrap: anywhere;
   word-break: break-word;
