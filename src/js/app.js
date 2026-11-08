@@ -407,6 +407,15 @@ function renderInto(gridEl, week, opts = {}) {
     "col-bg-dark",
     hasCourses && s.showColBg && !!s.colBgDark,
   );
+  // 深色衬底：黑色叠加量按主题背景明度折算，使「变深幅度」与浅色衬底「变浅幅度」对称
+  // （纯黑用与浅色相同的 α 时明度差会放大 ~10 倍，日间模式近乎全黑）
+  const darkTheme = document.documentElement.dataset.theme === "dark";
+  gridEl.style.setProperty(
+    "--col-bg-a-dark",
+    hasCourses && s.showColBg && !!s.colBgDark
+      ? (s.colBgAlpha / 100) * (darkTheme ? 0.7 : 0.1)
+      : 0,
+  );
   gridEl.style.setProperty("--header-fs", s.headerTextSize + "px");
   gridEl.style.setProperty("--ow-alpha", s.otherWeekAlpha / 100);
   // 列衬底圆角与课程格子圆角动态一致
