@@ -29,7 +29,7 @@ test('share: 口令 roundtrip（压缩或降级均正确）', async () => {
   const sch = sampleSchedule();
   const enc = await Share.encodeShare(sch);
   assert.ok(!enc.error, enc.error);
-  assert.ok(/^WU[01]:/.test(enc.code));
+  assert.ok(/^CU[01]:/.test(enc.code));
   const dec = await Share.decodeShare(enc.code);
   assert.ok(!dec.error, dec.error);
   assert.deepStrictEqual(dec.schedule, sch);

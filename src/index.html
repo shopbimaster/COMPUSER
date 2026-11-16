@@ -10,7 +10,7 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost content:"
     />
-    <title>CAMPUSER</title>
+    <title>campuser</title>
     <link rel="icon" type="image/png" href="assets/icon.png" />
     <link rel="stylesheet" href="css/style.css?v=2.2.1-5" />
     <script src="../branding.js"></script>
@@ -1087,8 +1087,17 @@
 
     <div class="toast" id="toast" hidden></div>
 
-    <script src="../core/adjust.js?v=2.2.1-5"></script>
+    <aside id="storageStatus" class="storage-status" role="status" aria-live="polite" hidden>
+      <p id="storageMessage"></p>
+      <div class="storage-actions">
+        <button type="button" class="pill-btn primary" id="storageRetry">重试保存</button>
+        <button type="button" class="pill-btn" id="storageExport">导出未保存备份</button>
+        <button type="button" class="pill-btn" id="storageReload">重新加载</button>
+      </div>
+    </aside>
+
     <script src="../core/week.js?v=2.2.1-5"></script>
+    <script src="../core/adjust.js?v=2.2.1-5"></script>
     <script src="../core/conflict.js?v=2.2.1-5"></script>
     <script src="../core/model.js?v=2.2.1-5"></script>
     <script src="../core/merge.js?v=2.2.1-5"></script>
@@ -1096,9 +1105,10 @@
     <script src="../core/codec/share.js?v=2.2.1-5"></script>
     <script src="../core/codec/csv.js?v=2.2.1-5"></script>
     <script src="../core/codec/ics.js?v=2.2.1-5"></script>
+    <script src="../core/persistence.js"></script>
     <script src="../adapters/electron-bridge.js"></script>
     <script src="../adapters/tauri-bridge.js"></script>
     <script src="../adapters/browser-bridge.js"></script>
-    <script src="js/app.js?v=2.2.1-5"></script>
+    <script type="module" src="js/app.mjs"></script>
   </body>
 </html>

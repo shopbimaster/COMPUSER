@@ -1,4 +1,4 @@
-// CAMPUSER 图标生成：图标/app2.svg（矢量）→ 白色圆角底组合 → 各平台全套尺寸
+// campuser 图标生成：图标/app2.svg（矢量）→ 白色圆角底组合 → 各平台全套尺寸
 // 用法：npx electron scripts/render-icons.js
 // 产物：
 //   build/icon.png            1024 圆角底（electron-builder → exe/安装包/快捷方式 ico 源）

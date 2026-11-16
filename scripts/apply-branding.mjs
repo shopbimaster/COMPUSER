@@ -16,6 +16,7 @@ const pkgPath = join(root, 'package.json');
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
 pkg.name = brand.APP_NAME.toLowerCase(); // 技术包名（决定安装版 %APPDATA% 目录名）
 pkg.description = `${brand.FULL_NAME} - ${brand.TAGLINE}`;
+pkg.author = brand.APP_NAME;
 pkg.build.productName = brand.APP_NAME;
 pkg.build.appId = brand.APP_ID;
 pkg.build.nsis.shortcutName = brand.APP_NAME;
@@ -40,5 +41,16 @@ if (Array.isArray(tauri.app?.windows)) {
   for (const w of tauri.app.windows) w.title = brand.APP_NAME;
 }
 writeFileSync(tauriPath, JSON.stringify(tauri, null, 2) + '\n', 'utf8');
+
+const htmlPath = join(root, 'src', 'index.html');
+writeFileSync(htmlPath, readFileSync(htmlPath, 'utf8').replace(/<title>.*?<\/title>/, `<title>${brand.FULL_NAME}</title>`));
+const cargoPath = join(root, 'src-tauri', 'Cargo.toml');
+writeFileSync(cargoPath, readFileSync(cargoPath, 'utf8')
+  .replace(/^version = ".*"/m, `version = "${pkg.version}"`)
+  .replace(/^description = ".*"/m, `description = "${brand.FULL_NAME} 课程表（Tauri 2 壳）"`)
+  .replace(/^authors = .*$/m, `authors = ["${brand.APP_NAME}"]`));
+const stringsPath = join(root, 'src-tauri/gen/android/app/src/main/res/values/strings.xml');
+writeFileSync(stringsPath, readFileSync(stringsPath, 'utf8')
+  .replace(/(<string name="(?:app_name|main_activity_title)">).*?(<\/string>)/g, `$1${brand.FULL_NAME}$2`));
 
 console.log(`[apply-branding] ${brand.APP_NAME} → package.json / build/branding.nsh / src-tauri/tauri.conf.json`);

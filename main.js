@@ -1,10 +1,11 @@
-// CAMPUSER - Electron 主进程
+// campuser - Electron 主进程
 // 数据完全保存在本地 JSON 文件，无任何网络请求、无广告
 // 软件名等品牌信息统一取自 branding.js（唯一修改接口）
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const BRAND = require('./branding');
+const { createFileStorage } = require('./adapters/file-storage');
 
 // 数据目录：
 // - 开发/便携：项目内 data/（绿色便携，数据随目录走）
@@ -20,12 +21,14 @@ const DATA_DIR = isPortable
   ? path.join(__dirname, 'data')
   : path.join(app.getPath('appData'), 'campuser', 'installs', installDataKey(), 'data');
 const DATA_FILE = path.join(DATA_DIR, 'schedule.json');
+const storage = createFileStorage(DATA_FILE);
+let migrationError = null;
 
 // 便携化：仅开发/便携模式把 userData 指向项目内目录；安装版保持系统默认
 if (isPortable) app.setPath('userData', path.join(DATA_DIR, 'profile'));
 
 // 一次性迁移：首跑且新目录无数据时，从旧版目录拷贝（旧目录保留，便于回退旧版本）
-if (!isPortable && !fs.existsSync(DATA_FILE)) {
+if (!isPortable && !fs.existsSync(DATA_FILE) && !fs.existsSync(DATA_FILE + '.bak')) {
   const legacyDirs = [
     path.join(app.getPath('appData'), 'campuser', 'data'), // v1.5.0 安装版
     path.join(app.getPath('appData'), 'wakeup-schedule-local', 'data') // 品牌更名前
@@ -36,16 +39,11 @@ if (!isPortable && !fs.existsSync(DATA_FILE)) {
         fs.cpSync(src, DATA_DIR, { recursive: true });
         console.log('[migrate] imported data from', src);
       } catch (e) {
-        console.log('[migrate] skipped:', String(e));
+        migrationError = new Error('旧版课表迁移失败，原始数据已保留：' + String(e));
       }
       break;
     }
   }
-}
-
-function ensureDataFile() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  if (!fs.existsSync(DATA_FILE)) fs.writeFileSync(DATA_FILE, JSON.stringify({ courses: [], settings: null }, null, 2), 'utf-8');
 }
 
 function createWindow() {
@@ -63,6 +61,14 @@ function createWindow() {
     }
   });
   win.setMenuBarVisibility(false);
+  win.webContents.on('will-prevent-unload', (event) => {
+    const choice = dialog.showMessageBoxSync(win, {
+      type: 'warning', buttons: ['返回并保存', '放弃未保存修改并退出'],
+      defaultId: 0, cancelId: 0, title: BRAND.FULL_NAME,
+      message: '仍有修改尚未保存。退出会丢失这些修改。'
+    });
+    if (choice === 1) event.preventDefault();
+  });
   // 将渲染进程的报错转发到终端，便于排查
   win.webContents.on('console-message', (_e, level, message) => {
     if (level >= 2) console.log('[renderer]', message);
@@ -73,15 +79,11 @@ function createWindow() {
 
 // ---------- IPC（壳只做哑管道：文本进、文本出，语义由渲染进程的 core 决定） ----------
 ipcMain.handle('data:load', () => {
-  ensureDataFile();
-  return fs.readFileSync(DATA_FILE, 'utf-8');
+  if (migrationError) throw migrationError;
+  return storage.load();
 });
 
-ipcMain.handle('data:save', (_e, text) => {
-  ensureDataFile();
-  fs.writeFileSync(DATA_FILE, String(text), 'utf-8');
-  return true;
-});
+ipcMain.handle('data:save', (_e, text, options) => storage.save(String(text), options));
 
 // 分享端口：文件导出（另存为对话框）
 ipcMain.handle('share:exportFile', async (_e, payload) => {
@@ -118,7 +120,6 @@ ipcMain.handle('autostart:set', (_e, on) => {
 });
 
 app.whenReady().then(() => {
-  ensureDataFile();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

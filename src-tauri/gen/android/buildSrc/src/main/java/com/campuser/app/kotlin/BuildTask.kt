@@ -23,7 +23,7 @@ abstract class BuildTask : DefaultTask() {
 
     @TaskAction
     fun assemble() {
-        // CAMPUSER：无管理员/开发者模式的机器上 Tauri CLI 的 .so 符号链接会失败。
+        // campuser：无管理员/开发者模式的机器上 Tauri CLI 的 .so 符号链接会失败。
         // 设 CAMPUSER_SKIP_RUST_BUILD=1 时跳过 CLI 调用——.so 由
         // scripts/build-android.ps1 预先 cargo 构建并真实拷贝到 jniLibs。
         if (System.getenv("CAMPUSER_SKIP_RUST_BUILD") == "1") {

@@ -1,8 +1,10 @@
-# CampUser - Windows 便携包一键打包
+# campuser - Windows 便携包一键打包
 # 产物：release/campuser-win64-portable.zip（解压后双击 start-portable.bat 运行，无需安装）
 # 前提：本仓库已执行过 npm install（node_modules/electron 必须存在）
 $ErrorActionPreference = 'Stop'
 Set-Location (Join-Path $PSScriptRoot '..')
+node scripts/apply-branding.mjs
+if ($LASTEXITCODE -ne 0) { throw 'branding sync failed' }
 
 if (-not (Test-Path 'node_modules\electron\dist\electron.exe')) {
   Write-Error '缺少 node_modules\electron\dist\electron.exe，请先执行 npm install'

@@ -1,5 +1,5 @@
 /*!
- * CampUser 课程表模块 · 领域内核：iCal (.ics) 导出与导入
+ * campuser 课程表模块 · 领域内核：iCal (.ics) 导出与导入
  * 导出：还原原版"导出 iCal 文件"——每个时间段一个 VEVENT，
  *       RRULE=WEEKLY 按周重复（单双周 INTERVAL=2），含 VTIMEZONE（Asia/Shanghai）。
  * 导入：兼容本应用与原版 WakeUpSchedule 的导出格式——
@@ -74,7 +74,7 @@
     const lines = [
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
-      'PRODID:-//CampUser//CN//',
+      'PRODID:-//campuser//CN//',
       'CALSCALE:GREGORIAN',
       'METHOD:PUBLISH',
       'X-WR-CALNAME:' + escText(schedule.name),

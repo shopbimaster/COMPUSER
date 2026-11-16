@@ -1,7 +1,7 @@
 /*!
- * CampUser 课程表模块 · 领域内核：QR 码 / 文本口令编解码
+ * campuser 课程表模块 · 领域内核：QR 码 / 文本口令编解码
  * 离线版"分享口令"：单表分享 JSON → deflate 压缩 → base64url，
- * 前缀 WU1:（压缩）/ WU0:（原文，压缩不可用时降级）。
+ * 前缀 CU1:（压缩）/ CU0:（原文，压缩不可用时降级）。
  * 全程无网络：传输介质是屏幕（QR）与剪贴板（口令）。
  */
 (function (root, factory) {
@@ -50,17 +50,17 @@
     } catch (e) { return null; }
   }
 
-  // schedule → 'WU1:…' / 'WU0:…'
+  // schedule → 'CU1:…' / 'CU0:…'
   async function encodeShare(schedule) {
     const json = Backup.serializeShare(schedule);
     const raw = new TextEncoder().encode(json);
     const def = await deflateBytes(raw);
     let prefix, payload;
     if (def && def.length < raw.length) {
-      prefix = 'WU1:';
+      prefix = 'CU1:';
       payload = def;
     } else {
-      prefix = 'WU0:';
+      prefix = 'CU0:';
       payload = raw;
     }
     const code = prefix + bytesToB64Url(payload);
@@ -70,13 +70,13 @@
     return { code };
   }
 
-  // 'WU1:…' / 'WU0:…' → {schedule} | {error}
+  // 'CU1:…' / 'CU0:…' → {schedule} | {error}
   async function decodeShare(code) {
     const s = String(code || '').trim();
     let compressed;
-    if (s.startsWith('WU1:')) compressed = true;
-    else if (s.startsWith('WU0:')) compressed = false;
-    else return { error: '口令格式不正确（应以 WU1: 或 WU0: 开头）' };
+    if (s.startsWith('CU1:') || s.startsWith('WU1:')) compressed = true;
+    else if (s.startsWith('CU0:') || s.startsWith('WU0:')) compressed = false;
+    else return { error: '口令格式不正确（应以 CU1: 或 CU0: 开头）' };
 
     let bytes;
     try { bytes = b64UrlToBytes(s.slice(4)); }

@@ -1,8 +1,8 @@
-﻿# CAMPUSER Android APK 构建（免管理员/开发者模式）
+﻿# campuser Android APK 构建（免管理员/开发者模式）
 # 背景：Tauri CLI 用符号链接把 .so 链入 jniLibs，无 SeCreateSymbolicLink 权限会失败。
 # 本脚本：cargo 构建 aarch64 → 真实拷贝 .so → 跳过 CLI 任务由 gradle 组装签名 APK。
 # 产物：src-tauri/gen/android/app/build/outputs/apk/arm64/release/*.apk
-#      （并拷贝到 release/CAMPUSER-<ver>-android-arm64.apk）
+#      （并拷贝到 release/campuser-<ver>-android-arm64.apk）
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
 $env:CARGO_HOME = 'D:\VScode\rust\cargo'
@@ -40,7 +40,7 @@ if ($LASTEXITCODE -ne 0) { throw 'gradle assemble failed' }
 $apk = Get-ChildItem "$root\src-tauri\gen\android\app\build\outputs\apk\arm64\release\*.apk" |
   Sort-Object LastWriteTime -Descending | Select-Object -First 1
 $ver = (Get-Content "$root\src-tauri\tauri.conf.json" | ConvertFrom-Json).version
-$out = "$root\release\CAMPUSER-$ver-android-arm64.apk"
+$out = "$root\release\campuser-$ver-android-arm64.apk"
 New-Item -ItemType Directory -Force -Path "$root\release" | Out-Null
 Copy-Item $apk.FullName $out -Force
 Write-Host "[done] $out（$([math]::Round($apk.Length / 1MB, 1)) MB）"

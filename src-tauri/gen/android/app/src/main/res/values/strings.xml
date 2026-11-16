@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">"CAMPUSER"</string>
-    <string name="main_activity_title">"CAMPUSER"</string>
+    <string name="app_name">campuser</string>
+    <string name="main_activity_title">campuser</string>
 </resources>

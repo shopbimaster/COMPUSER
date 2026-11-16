@@ -1,5 +1,5 @@
 /*!
- * CampUser · 品牌唯一事实源（单一修改接口）
+ * campuser · 品牌唯一事实源（单一修改接口）
  *
  * 全部软件名/品牌文案集中在此，任何地方不得硬编码：
  *  - Electron 主进程：require('./branding')
@@ -14,14 +14,14 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
   return {
-    /** 短名：窗口标题、快捷方式、进程名等（全大写，取 Campus + er 之意） */
-    APP_NAME: 'CAMPUSER',
+    /** 短名：窗口标题、快捷方式、进程名等（统一小写，campus + er，意为校园里的人） */
+    APP_NAME: 'campuser',
     /** 完整显示名：向用户展示的软件名（无副标题；后续校园功能统一在此品牌下） */
-    FULL_NAME: 'CAMPUSER',
+    FULL_NAME: 'campuser',
     /** 一句话定位（安装/关于页可复用） */
     TAGLINE: '本地 · 无广告 · 数据完全本地',
-    /** 导出文件名前缀：CAMPUSER-backup-*.json / CAMPUSER-*.csv 等 */
-    EXPORT_PREFIX: 'CAMPUSER',
+    /** 导出文件名前缀：campuser-backup-*.json / campuser-*.csv 等 */
+    EXPORT_PREFIX: 'campuser',
     /** 应用 ID（安装/注册表/自启动键） */
     APP_ID: 'com.campuser.app'
   };

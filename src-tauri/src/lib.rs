@@ -1,10 +1,11 @@
-// CAMPUSER · Tauri 2 壳
+// campuser · Tauri 2 壳
 // 壳只做平台能力（存储/文件/分享）；领域逻辑在 core/（JS UMD）。
 // 与 Electron 版数据契约一致：app_data_dir/schedule.json（campuser-schedule/2）。
 
 use std::fs;
 use std::path::PathBuf;
 use tauri::Manager;
+mod storage;
 
 fn data_file(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let dir = app
@@ -101,21 +102,15 @@ fn set_status_bar_icons(app: tauri::AppHandle, light: bool) {
 // ---- 存储：与 Electron 版同格式（schedule.json 文本） ----
 
 #[tauri::command]
-fn load_data(app: tauri::AppHandle) -> Result<Option<String>, String> {
-    let file = data_file(&app)?;
-    if !file.exists() {
-        return Ok(None);
-    }
-    fs::read_to_string(file).map(Some).map_err(|e| e.to_string())
+fn load_data(app: tauri::AppHandle) -> Result<storage::Snapshot, String> {
+    let _guard = storage::LOCK.lock().map_err(|e| e.to_string())?;
+    storage::load(&data_file(&app)?)
 }
 
 #[tauri::command]
-fn save_data(app: tauri::AppHandle, text: String) -> Result<(), String> {
-    let file = data_file(&app)?;
-    if let Some(parent) = file.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    fs::write(file, text).map_err(|e| e.to_string())
+fn save_data(app: tauri::AppHandle, text: String, expected: Option<String>) -> Result<(), String> {
+    let _guard = storage::LOCK.lock().map_err(|e| e.to_string())?;
+    storage::save(&data_file(&app)?, &text, expected.as_deref())
 }
 
 // ---- 文件：导出落盘 / 读取所选文件 / 临时文件（供分享） ----
@@ -360,5 +355,5 @@ pub fn run() {
             share_file_android
         ])
         .run(tauri::generate_context!())
-        .expect("error while running CAMPUSER");
+        .expect("error while running campuser");
 }

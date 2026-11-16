@@ -10,7 +10,7 @@ build/*
 *.log
 
 # ---- 发布产物 ----
-release/
+/release/
 
 # ---- 凭据（GitHub PAT，仅本地使用，严禁入库）----
 campus.token
@@ -36,3 +36,4 @@ desktop.ini
 *.swp
 .idea/
 .vscode/
+.kotlin/

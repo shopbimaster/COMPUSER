@@ -1,5 +1,5 @@
 /*!
- * CampUser 课程表模块 · 领域内核：周次与日期计算（纯函数，零平台依赖）
+ * campuser 课程表模块 · 领域内核：周次与日期计算（纯函数，零平台依赖）
  * UMD：浏览器挂 window.CampuserWeek；Node 环境 module.exports 供单元测试
  */
 (function (root, factory) {
@@ -9,7 +9,7 @@
   'use strict';
 
   const DAY_MS = 24 * 3600 * 1000;
-  const WEEK_MS = 7 * DAY_MS;
+  const calendarDay = date => Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / DAY_MS;
 
   const pad2 = (n) => String(n).padStart(2, '0');
 
@@ -49,7 +49,7 @@
   // 还原原版 countWeek：天数差/7 + 1（结果可能 ≤0 或超出学期，由调用方收敛）
   function calcCurrentWeek(termStart, now) {
     const t = now ? toDate(now) : today();
-    const diff = Math.floor((t - weekAnchor(termStart)) / WEEK_MS);
+    const diff = Math.floor((calendarDay(t) - calendarDay(weekAnchor(termStart))) / 7);
     return diff + 1;
   }
 
@@ -57,7 +57,7 @@
   function dayDate(termStart, w, day) { return addDays(weekStartDate(termStart, w), day - 1); }
 
   function weekOfDate(termStart, date) {
-    return Math.floor((toDate(date) - weekAnchor(termStart)) / WEEK_MS) + 1;
+    return Math.floor((calendarDay(toDate(date)) - calendarDay(weekAnchor(termStart))) / 7) + 1;
   }
 
   // 日期模式（原版特色功能）：起止日期 → 周次范围，存储仍为周次

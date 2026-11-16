@@ -11,7 +11,7 @@
     isElectron: true,
     storage: {
       load: () => window.electronAPI.loadData(),
-      save: (text) => window.electronAPI.saveData(text)
+      save: (text, options) => window.electronAPI.saveData(text, options)
     },
     share: {
       // 发送：弹出另存为对话框写文件，返回保存路径或 null（取消）

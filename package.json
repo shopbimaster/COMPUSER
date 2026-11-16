@@ -1,19 +1,21 @@
 {
   "name": "campuser",
   "version": "2.2.0",
-  "description": "CAMPUSER - 本地 · 无广告 · 数据完全本地",
+  "description": "campuser - 本地 · 无广告 · 数据完全本地",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node --test core/test/*.test.js",
-    "serve": "npx serve src",
+    "test": "node --test core/test/*.test.js && npm run test:ui",
+    "test:ui": "node --experimental-vm-modules --test tests/ui.test.cjs",
+    "test:smoke": "node scripts/run-electron-smoke.cjs",
+    "serve": "node scripts/dev-server.cjs",
     "predist": "node scripts/apply-branding.mjs",
     "dist": "electron-builder --win nsis --publish never",
     "prepare-tauri": "node scripts/prepare-tauri.mjs",
-    "apk": "node scripts/prepare-tauri.mjs && npx -y @tauri-apps/cli@latest android build --apk --target aarch64",
+    "apk": "node scripts/prepare-tauri.mjs && tauri android build --apk --target aarch64",
     "release": "powershell -ExecutionPolicy Bypass -File scripts/build-release.ps1"
   },
-  "author": "CAMPUSER",
+  "author": "campuser",
   "license": "MIT",
   "devDependencies": {
     "@tauri-apps/cli": "^2.12.2",
@@ -27,7 +29,7 @@
   },
   "build": {
     "appId": "com.campuser.app",
-    "productName": "CAMPUSER",
+    "productName": "campuser",
     "directories": {
       "output": "release/installer"
     },
@@ -58,8 +60,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": false,
       "createStartMenuShortcut": true,
-      "shortcutName": "CAMPUSER",
-      "artifactName": "CAMPUSER-Setup-${version}.${ext}",
+      "shortcutName": "campuser",
+      "artifactName": "campuser-Setup-${version}.${ext}",
       "include": "build/installer.nsh"
     }
   }

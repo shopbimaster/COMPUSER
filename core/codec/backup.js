@@ -1,5 +1,5 @@
 /*!
- * CampUser 课程表模块 · 领域内核：备份与分享文件编解码（纯逻辑）
+ * campuser 课程表模块 · 领域内核：备份与分享文件编解码（纯逻辑）
  *
  * 两种文件格式：
  *   完整备份  { format:'campuser-schedule/2', device, ..., schedules[] }
@@ -40,6 +40,9 @@
       return { error: '不是有效的 JSON 文件' };
     }
     if (!raw || typeof raw !== 'object') return { error: '文件内容不是有效对象' };
+    if (raw.format != null && ![BACKUP_FORMAT, SHARE_FORMAT].includes(raw.format)) {
+      return { error: '不支持的数据版本，请使用对应版本的 campuser 导入' };
+    }
     if (Array.isArray(raw.schedules)) {
       return { kind: 'backup', state: Model.normalizeState(raw) };
     }

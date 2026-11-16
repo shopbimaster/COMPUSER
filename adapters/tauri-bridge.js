@@ -29,7 +29,7 @@
   };
   const baseName = (p) => String(p || '').split(/[\\/]/).pop();
   const FILTERS = [
-    { name: 'CAMPUSER 导入文件', extensions: ['json', 'csv', 'ics', 'txt'] }
+    { name: 'campuser 导入文件', extensions: ['json', 'csv', 'ics', 'txt'] }
   ];
 
   const ports = {
@@ -37,14 +37,13 @@
     isTauri: true,
     platform: null, // 'android' | 'windows' | 'macos' | 'linux'（init 异步填充）
     storage: {
-      load: async () => {
-        try { return await invoke('load_data'); } catch (e) { return null; }
-      },
-      save: async (text) => { await invoke('save_data', { text: String(text) }); }
+      load: () => invoke('load_data'),
+      save: (text, options) => invoke('save_data', { text: String(text), expected: options.expected })
     },
     share: {
       // 发送：Android 调系统「另存为」窗口直接保存 / 桌面另存为；返回展示用路径或 null（取消）
       send: async (text, defaultName) => {
+        await ports.ready;
         const name = defaultName || 'campuser-export.txt';
         const target = await invoke('plugin:dialog|save', { options: { defaultPath: name } });
         if (!target) return null;
@@ -63,6 +62,7 @@
       // 接收：选择文件并读文本；返回 {name,text} | {name,error,detail} | null（取消）
       // detail 为逐步诊断信息（真机排障用）
       receive: async () => {
+        await ports.ready;
         if (ports.platform === 'android') {
           // Android 返回 content:// URI（std::fs 读不了）：主路径 read_content_file
           // （ContentResolver JNI），fetch 兜底。不传 filters：ACTION_GET_CONTENT 按
@@ -113,7 +113,7 @@
         let path = null;
         try {
           path = await invoke('plugin:dialog|open', { options: { multiple: false, filters: FILTERS } });
-        } catch (e) { return null; }
+        } catch (e) { return { name: '', error: true, detail: '选择器调用失败: ' + ((e && e.message) || e) }; }
         if (!path) return null;
         if (Array.isArray(path)) path = path[0];
         try {
@@ -139,7 +139,7 @@
   };
 
   window.__ports = ports;
-  invoke('os_platform')
-    .then((p) => { ports.platform = p; })
-    .catch(() => {});
+  ports.ready = invoke('os_platform').then((p) => { ports.platform = p; });
+  // Keep initialization errors observable to init/send/receive without an unhandled rejection.
+  ports.ready.catch(() => {});
 })();

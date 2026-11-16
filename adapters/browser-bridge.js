@@ -9,23 +9,30 @@
 
   const LS_KEY = 'campuser-schedule-data';
   const LS_KEY_LEGACY = 'wakeup-schedule-data'; // 品牌更名前的浏览器存储键（只读迁移）
+  const { parseSnapshot } = window.CampuserPersistence;
+  const readCurrent = () => localStorage.getItem(LS_KEY) ?? localStorage.getItem(LS_KEY_LEGACY);
+  function save(text, { expected }) {
+    parseSnapshot(text);
+    const previous = readCurrent();
+    if (previous !== expected) throw new Error('数据已被其他窗口修改，请先导出当前修改，再重新加载');
+    if (previous !== null) {
+      let valid = true;
+      try { parseSnapshot(previous); } catch { valid = false; }
+      if (valid) localStorage.setItem(LS_KEY + '.bak', previous);
+      else localStorage.setItem(LS_KEY + '.corrupt-' + Date.now() + '-' + Math.random().toString(36).slice(2), previous);
+    } else if (localStorage.getItem(LS_KEY + '.bak') === null) {
+      localStorage.setItem(LS_KEY + '.bak', text);
+    }
+    localStorage.setItem(LS_KEY, text);
+  }
 
   window.__ports = {
     isElectron: false,
     storage: {
-      load: async () => {
-        try {
-          const cur = localStorage.getItem(LS_KEY);
-          if (cur !== null) return cur;
-          const legacy = localStorage.getItem(LS_KEY_LEGACY); // 旧键一次性迁移
-          if (legacy !== null) {
-            localStorage.setItem(LS_KEY, legacy);
-            localStorage.removeItem(LS_KEY_LEGACY);
-          }
-          return legacy;
-        } catch (e) { return null; }
-      },
-      save: async (text) => localStorage.setItem(LS_KEY, String(text))
+      load: async () => ({ text: readCurrent(), backup: localStorage.getItem(LS_KEY + '.bak') }),
+      save: async (text, options) => navigator.locks
+        ? navigator.locks.request(LS_KEY, () => save(String(text), options))
+        : save(String(text), options)
     },
     share: {
       send: async (text, defaultName) => {
@@ -50,6 +57,7 @@
           r.onerror = () => resolve(null);
           r.readAsText(f, 'utf-8');
         };
+        input.oncancel = () => resolve(null);
         input.click();
       })
     }

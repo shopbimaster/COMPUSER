@@ -1,5 +1,5 @@
 /*!
- * CampUser 课程表模块 · 领域内核：数据模型 v2（纯函数，零平台依赖）
+ * campuser 课程表模块 · 领域内核：数据模型 v2（纯函数，零平台依赖）
  *
  * 数据格式 campuser-schedule/2（同步就绪）：
  *   AppState   { format, device, updatedAt, prefs, currentScheduleId, schedules[] }
@@ -108,7 +108,7 @@
       s.courseTextColor === 'black' || s.courseTextColor === 'white'
         ? s.courseTextColor
         : 'auto';
-    s.cornerRadius = clamp(Number(s.cornerRadius) || DEFAULT_SETTINGS.cornerRadius, 0, 16);
+    s.cornerRadius = clamp(Number.isFinite(Number(s.cornerRadius)) ? Number(s.cornerRadius) : DEFAULT_SETTINGS.cornerRadius, 0, 16);
     // 0 是合法值（无间距），不能走 `|| 默认` 的短路写法
     const cg = Number(s.courseGap);
     s.courseGap = isNaN(cg) ? DEFAULT_SETTINGS.courseGap : clamp(cg, 0, 10);
@@ -233,6 +233,8 @@
   //   ③ day/weeks/room/teach 相同且节次相邻（3-4节+5-6节 → 3-6节）→ 拼接 step
   // 循环直到不再变化（拼接可能产生新的相邻/重复）
   function mergeSlots(list) {
+    const sameTime = (a, b) => (a.customTime?.start ?? null) === (b.customTime?.start ?? null)
+      && (a.customTime?.end ?? null) === (b.customTime?.end ?? null);
     let slots = list.slice();
     let changed = true;
     while (changed) {
@@ -242,7 +244,7 @@
         // ② 同键（时间+教室+教师相同）→ weeks 并集；weeks 已相等则是完全重复，走 ① 去重
         const twin = out.find(
           (o) =>
-            o.day === s.day && o.start === s.start && o.step === s.step &&
+            sameTime(o, s) && o.day === s.day && o.start === s.start && o.step === s.step &&
             o.room === s.room && o.teach === s.teach && o.weeks !== s.weeks
         );
         if (twin) {
@@ -258,7 +260,7 @@
         if (
           out.some(
             (o) =>
-              o.day === s.day && o.start === s.start && o.step === s.step &&
+              sameTime(o, s) && o.day === s.day && o.start === s.start && o.step === s.step &&
               o.weeks === s.weeks && o.room === s.room && o.teach === s.teach
           )
         ) {
@@ -268,7 +270,7 @@
         // ③ 同周次同教室教师且节次相邻 → 拼接
         const adj = out.find(
           (o) =>
-            o.day === s.day && o.weeks === s.weeks &&
+            !o.customTime && !s.customTime && o.day === s.day && o.weeks === s.weeks &&
             o.room === s.room && o.teach === s.teach &&
             (o.start + o.step === s.start || s.start + s.step === o.start)
         );

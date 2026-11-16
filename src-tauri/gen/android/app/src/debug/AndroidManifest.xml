@@ -1,0 +1,4 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Development server only. The offline release has no network permission. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+</manifest>

@@ -1,4 +1,4 @@
-; CAMPUSER · NSIS 自定义安装脚本
+; campuser · NSIS 自定义安装脚本
 ; 「选项页」：目录页之后询问 桌面快捷方式 + 开机自动启动（均默认勾选）
 ;
 ; 结构铁律（勿回退，历史多轮踩坑结论）：
@@ -16,6 +16,7 @@
 
 !include "nsDialogs.nsh"
 !include "WinMessages.nsh"
+!include "${BUILD_RESOURCES_DIR}\branding.nsh"
 
 !macro customPageAfterChangeDir
   PageEx custom
@@ -42,7 +43,7 @@ Function nsOptionsPageCreate
   ${NSD_CreateCheckbox} 0u 18u 100% 10u "创建桌面快捷方式"
   Pop $DESKTOP_CB
   ${NSD_SetState} $DESKTOP_CB 1
-  ${NSD_CreateCheckbox} 0u 36u 100% 10u "开机自动启动 CAMPUSER"
+  ${NSD_CreateCheckbox} 0u 36u 100% 10u "开机自动启动 ${BRAND_NAME}"
   Pop $AUTOSTART_CB
   ${NSD_SetState} $AUTOSTART_CB 1
   nsDialogs::Show
@@ -66,13 +67,13 @@ FunctionEnd
     StrCpy $AUTOSTART_STATE "1"
   ; 桌面快捷方式（自建自管：electron-builder 侧已关闭自动创建）
   StrCmp $DESKTOP_STATE "1" 0 +2
-    CreateShortCut "$DESKTOP\CAMPUSER.lnk" "$INSTDIR\${PRODUCT_NAME}.exe"
+    CreateShortCut "$DESKTOP\${BRAND_NAME}.lnk" "$INSTDIR\${PRODUCT_NAME}.exe"
   ; 开机自动启动（HKCU 当前用户，无需管理员权限）
   StrCmp $AUTOSTART_STATE "1" 0 +2
-    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "CAMPUSER" "$INSTDIR\${PRODUCT_NAME}.exe"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${BRAND_NAME}" "$INSTDIR\${PRODUCT_NAME}.exe"
 !macroend
 
 !macro customUnInstall
-  Delete "$DESKTOP\CAMPUSER.lnk"
-  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "CAMPUSER"
+  Delete "$DESKTOP\${BRAND_NAME}.lnk"
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${BRAND_NAME}"
 !macroend

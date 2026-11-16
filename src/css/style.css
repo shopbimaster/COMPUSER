@@ -1,7 +1,7 @@
-/* WakeUp 课程表 本地版 - 样式（v3：对齐新版 WakeUp 视觉）
+/* campuser - 课表样式
    设计语言：淡紫蓝渐变底 / 实色圆角课程块白字 / 粉红强调 + 蓝紫选中 / 大圆角卡片与底部弹层 */
 
-:root[data-theme="light"] {
+:root, :root[data-theme="light"] {
   color-scheme: light; /* 原生控件（下拉/时间/日期选择器与时钟图标）跟随浅色 */
   --bg: #e9e6f4;
   --bg-grad: linear-gradient(155deg, #f0e7f3 0%, #e9e6f6 38%, #dfe7f6 100%);
@@ -2132,3 +2132,26 @@ body.course-drag-active {
   margin: 6px auto 0;
   white-space: nowrap;
 }
+
+/* Persistent storage feedback stays usable while the draft is protected from further edits. */
+.storage-status {
+  position: fixed;
+  z-index: 10000;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(600px, calc(100% - 24px));
+  max-height: 60vh;
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid var(--accent);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.storage-status[hidden] { display: none; }
+.storage-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.storage-actions button { min-height: 44px; }

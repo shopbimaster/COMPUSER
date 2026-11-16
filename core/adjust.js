@@ -1,16 +1,14 @@
 /*!
- * CampUser 调课模块（纯函数零平台依赖）
+ * campuser 调课模块（纯函数零平台依赖）
  * 课程拖动调课与整日调课的数据变换，全部基于 campuser-schedule/2 现有结构
  * （weeks 位串为唯一真源，startWeek/endWeek/isOdd 为派生兼容字段——任何 weeks
  * 变更后须经 syncDerived 同步派生字段，保证导出/合并语义一致）。
  */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.CampuserAdjust = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./week'));
+  else root.CampuserAdjust = factory(root.CampuserWeek);
+})(typeof self !== 'undefined' ? self : this, function (Week) {
   'use strict';
-
-  const DAY_MS = 86400000;
 
   /** 从位串摘除第 w 周（w 从 1 起），长度不变；结果无任何 '1' 时返回 '' */
   function removeWeek(bits, w) {
@@ -41,29 +39,17 @@
     slot.isOdd = ones.length === 0 ? 0 : odd.length === ones.length ? 1 : odd.length === 0 ? 2 : 0;
   }
 
-  /** 学期第 w 周星期 d（均从 1 起）→ 'YYYY-MM-DD'（termStart 为第 1 周周一） */
+  /** 调课与主课表共用“开学日期所在周的周一”锚点。 */
   function dateOfWeekDay(termStart, w, d) {
-    const base = new Date(termStart + 'T00:00:00').getTime();
-    const dt = new Date(base + ((w - 1) * 7 + (d - 1)) * DAY_MS);
-    // 用本地分量拼接（toISOString 走 UTC，+08:00 时区会偏移一天）
-    return (
-      dt.getFullYear() +
-      '-' +
-      String(dt.getMonth() + 1).padStart(2, '0') +
-      '-' +
-      String(dt.getDate()).padStart(2, '0')
-    );
+    return Week.fmtDate(Week.dayDate(termStart, w, d));
   }
 
-  /** 日期 → { w, d }；日期早于 termStart 或周次超出 totalWeeks 时返回 null */
   function weekDayOfDate(termStart, dateIso, totalWeeks) {
-    const base = new Date(termStart + 'T00:00:00').getTime();
-    const diff = Math.floor((new Date(dateIso + 'T00:00:00').getTime() - base) / DAY_MS);
-    if (diff < 0) return null;
-    const w = Math.floor(diff / 7) + 1;
-    let d = diff % 7 + 1; // termStart 为周一 → diff%7: 0=周一
-    if (w > totalWeeks) return null;
-    return { w, d };
+    const date = Week.parseDate(dateIso);
+    if (!Number.isFinite(date.getTime()) || Week.fmtDate(date) !== dateIso) return null;
+    const w = Week.weekOfDate(termStart, date);
+    if (!Number.isFinite(w) || w < 1 || w > totalWeeks) return null;
+    return { w, d: Week.mondayIndex(date) + 1 };
   }
 
   /** 拖动「只调这一节」：slot 摘除 week 周，剩余为空则整体移动，否则新增单周目标段。

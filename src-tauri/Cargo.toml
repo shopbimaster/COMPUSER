@@ -1,8 +1,8 @@
 [package]
 name = "campuser"
-version = "2.0.0"
-description = "CAMPUSER 课程表（Tauri 2 壳）"
-authors = ["CAMPUSER"]
+version = "2.2.0"
+description = "campuser 课程表（Tauri 2 壳）"
+authors = ["campuser"]
 edition = "2021"
 
 [lib]

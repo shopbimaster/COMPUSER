@@ -1,95 +1,33 @@
-# CAMPUSER 跨平台迁移方案：Tauri 2（Android / iOS）
+# campuser 跨平台实现与迁移状态
 
-> 决策结论：**先迁移、后联网**。按「是否引入新平台端口」划线——纯 core 功能随时做；
-> 碰平台（网络栈 / 存储 / 通知 / 扫码）的一律等迁移完成后做。迁移期只修 bug。
+更新：2026-11-17。本文描述当前代码，不将旧计划视为已验收功能。
 
-## 0. 背景与目标
+## 当前实现
 
-- 现状：Electron 33 桌面版（Windows）已发布 v1.6.0；纯本地、无网络请求
-- 目标平台：国产安卓家族（华为/小米/OPPO/vivo/荣耀）与 iOS；Electron 桌面版继续维护
-- 定位约束：小而精的公益工具，不急扩展用户 → 无联网紧迫性，迁移优先级 > 新功能
+- Electron 桌面壳继续维护；Tauri 2 已有 Android 工程和平台端口；iOS 尚未提供工程。
+- 平台共享 `core/` 与 `src/js/`。UI 已改为显式依赖的 ES 模块，入口为 `app.mjs`；领域规则与编解码仍为可在 Node 和 WebView 中复用的模块。
+- 存储协议为 `campuser-schedule/2`，应用 ID 为 `com.campuser.app`。所有显示名称取自 `branding.js`，统一为小写 campuser。
+- Android 导入走系统文件选择器与 ContentResolver；导出走系统另存为与 ContentResolver。适配器先等待平台识别完成，再选择正确实现。
+- Electron 与 Tauri 采用临时文件同步后替换主文件、保留上一版备份、损坏原文归档；浏览器采用 localStorage 双键备份。统一端口约定见下文。
+- Android 主清单不声明 INTERNET；debug 清单允许开发服务器连接；release 清单通过 manifest merger 明确移除依赖可能引入的 INTERNET 权限。
 
-## 1. 为什么先迁移（决策论证）
+## 存储端口契约
 
-判据只有一条：**联网功能会不会引入新的平台端口**。
+```js
+storage.load() // Promise<{ text: string | null, backup: string | null }>
+storage.save(text, { expected }) // Promise；失败必须 reject，禁止吞错
+```
 
-| 维度 | 先联网 | 先迁移（采纳） |
-|---|---|---|
-| 迁移成本 | 凭据存储 / HTTP 栈 / 远端状态按 Electron 写，迁移时双端重验 | 迁移后联网 = core 协议 + 新 Port，双端一次实现 |
-| 需求风险 | 联网需求未定义，单端先行易范围膨胀 | 工作量确定、坑已探明 |
-| 定位稀释 | 加入 HTTP 客户端即需隐私声明，稀释「纯本地可验证」卖点 | 无网络权限可验证的承诺继续成立 |
-| 迁移债 | 新功能可能持续引入 Chromium 特有 API | 冻结期立即开始 |
+`null` 仅表示文件/存储键确实不存在。权限、读取和配额错误必须抛出。`expected` 是加载时或上次成功保存时的主文件原文，写入前比较以阻止陈旧窗口覆盖。
 
-反例：若联网功能是「教务对接导入课表」这类纯解析逻辑（core/ 内完成），不构成
-迁移负担，可随时做。跨设备同步现阶段已被口令 / 二维码 / 文件互通覆盖
-（campuser-schedule/2 三端同格式）。
+`core/persistence.js` 选择有效数据并执行迁移。恢复前后保留原文；无法识别的数据版本禁止自动降级。保存调用捕获不可变 JSON 快照并顺序执行。UI 只有收到成功结果才报告完成，失败可重试或导出内存修改。
 
-## 2. 迁移后的分层纪律（历史包袱控制）
+## 验收与边界
 
-1. **core/ 只长逻辑**：业务规则、数据模型、（未来）网络协议状态机；配单测；
-   数据格式向后兼容——新字段可选 + normalize 兜底，破坏性变更加 `/3` + migrate 链
-2. **adapters/ 一平台一文件**：新功能先定义 Port 接口再逐端实现；
-   `src/` 禁止直接触碰平台 API（只认 `window.__ports`）
-3. **功能立项标注成本**：`[core]`（三端免费）/ `[port:xx]`（×平台数）/ `[ui]`（各端适配）
-4. **不重写 UI 框架**：原生 JS 在移动 WebView 性能足够（低频重绘），
-   仅当触屏交互受限再局部组件化
+1. `npm test`：领域逻辑、故障注入、旧格式兼容、模块及 DOM 交互。
+2. `npm run prepare-tauri && npm run test:smoke`：源码与组装资源在实际 Chromium 中加载，检查桌面和窄屏、课程新增、切周、设置与控制台。
+3. `cargo test --manifest-path src-tauri/Cargo.toml --lib`：原生文件事务及备份测试。
+4. Android 发布前必须检查 **merged manifest / APK 最终权限**，不能仅凭源清单判断；还须真机检验文件互通、升级和故障恢复。
+5. iOS 需要 Mac、Xcode 与相应分发条件；没有实现和验收前不宣称支持。
 
-联网功能落位（解冻后）：`core/net/`（协议状态机）+ adapter 网络 Port +
-Android 独立 flavor 申请 INTERNET 权限；**纯本地发行版永远不申请网络权限**。
-
-## 3. 阶段计划与验收
-
-### T0 工具链（本机，D:\VScode 布局）
-- Rust stable（MSVC host）+ 4 个 Android target；VS Build Tools（VC++ + Windows SDK）
-- Temurin JDK 21 LTS；Android cmdline-tools + platform-tools + platform 34 +
-  build-tools 34 + NDK r27
-- 环境变量（用户级）：JAVA_HOME / ANDROID_HOME / NDK_HOME / RUSTUP_HOME /
-  CARGO_HOME / PATH 追加
-- **验收**：新 shell 中 `cargo --version`、`java -version`、`adb --version` 正常；
-  `cargo new` + `cargo build`（宿主）链接成功；`rustup target list --installed`
-  含 4 个 Android 三元组
-- 布局约定：一律装在 `D:\VScode\<工具名>\`（rust / jdk / android-sdk），PATH 指向
-  其 bin；长期开发选 LTS / stable 线，不追新
-
-### T1 tauri-bridge 适配器
-- `Ports.storage` → Rust command 读写 app data 目录 schedule.json（同格式）
-- `Ports.share.send` → Android share sheet / 桌面 plugin-dialog（解决 a.click() 不可靠）
-- `Ports.share.receive` → plugin-dialog 选文件；进阶 intent-filter 注册 .ics/.json
-- 扫码：zxing-wasm（WebView 可用）；Electron/浏览器保留 BarcodeDetector 优先
-- 验收：桌面 Tauri 版功能与 Electron 版冒烟对齐（课表增删改查 / 导入导出 / 主题）
-
-### T2 Android 真机适配
-- v1.5.0 窄屏排查报告 4 项：顶栏三段互撞、设置时间表横向溢出、极窄列截断、
-  （其余已过）；触摸目标 ≥44px；周切换手势
-- 验收：360px 宽度零横向滚动；主流家族模拟器（华为/小米风格）无阻塞性问题
-
-### T3 v2.0.0-alpha（Android）
-- APK 直发（GitHub Release + 官网），不依赖应用商店；上架（软著 + 备案）后议
-- AndroidManifest 不声明 INTERNET 权限（无网络可验证 = 信任卖点）
-- 验收：随机 10 台真机安装运行无崩溃；数据导出→桌面导入 roundtrip
-
-### T4 iOS
-- 前置：Mac + Xcode + 开发者账号（$99/年）；WKWebView 文件选择够用一期
-- 验收：TestFlight 分发；ICS 导出到系统日历（EventKit）评估
-
-### T5 迁移红利（解冻后）
-- ICS 写入系统日历（CalendarContract / EventKit）——移动端刚需
-- 联网功能按第 2 节纪律进入：教务对接 → 可选云同步
-
-## 4. 风险清单
-
-| 风险 | 应对 |
-|---|---|
-| VS Build Tools 体积大（~7GB） | 仅装 VC.Tools.x86.x64 + Windows SDK 组件 |
-| Android WebView 碎片 | Tauri 2 minSdk 24+；国产家族 WebView 自更新，风险低 |
-| 华为无 GMS | Tauri 无 GMS 依赖，无影响 |
-| 杀后台 | 纯本地无后台需求，天然免疫 |
-| 双渠道回归成本 | core 单测 + 各 adapter 冒烟脚本（CDP 模式复用） |
-| iOS 成本 | 放最后；无 Mac 则无限期推迟，不阻塞 Android |
-
-## 5. 与现有代码的衔接
-
-- `scripts/prepare-tauri.mjs` 已组装 dist/（app/ + core/ + adapters/ + branding.js）
-- `src-tauri/` identifier 需同步 branding（现为旧值 com.campuser.wakeuplocal →
-  应由 apply-branding.mjs 统一改写 tauri.conf.json）
-- `start-apk.bat` 依赖本方案的环境变量（JAVA_HOME / ANDROID_HOME / NDK_HOME / PATH）
+后续平台功能继续采用“先定义端口，再逐端实现”的方式。纯本地 release 不加入网络权限；如未来引入联网能力，应独立定义发行方式与用户选择。

@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "CAMPUSER",
+  "productName": "campuser",
   "version": "2.2.0",
   "identifier": "com.campuser.app",
   "build": {
@@ -9,7 +9,7 @@
   "app": {
     "windows": [
       {
-        "title": "CAMPUSER",
+        "title": "campuser",
         "width": 1280,
         "height": 860,
         "minWidth": 860,

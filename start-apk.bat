@@ -1,5 +1,5 @@
 @echo off
-rem CampUser 本地版 - Android APK 一键构建（Tauri 2）
+rem campuser 本地版 - Android APK 一键构建（Tauri 2）
 rem 首次使用需一次性安装工具链，缺什么本脚本会给出对应指引：
 rem   1) Rust:        https://rustup.rs  （安装后执行 rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android）
 rem   2) Android Studio（含 SDK + NDK + JDK 17），并在系统变量设置 ANDROID_HOME 与 NDK_HOME
@@ -20,13 +20,13 @@ node scripts/prepare-tauri.mjs || goto :fail
 
 if not exist "src-tauri\gen\android" (
   echo [2/3] 初始化 Android 工程（首次）...
-  npx -y @tauri-apps/cli@latest android init || goto :fail
+  npx --no-install tauri android init || goto :fail
 ) else (
   echo [2/3] Android 工程已存在，跳过 init
 )
 
 echo [3/3] 构建 APK（aarch64，首次需编译 Rust 依赖，约 10-30 分钟）...
-npx -y @tauri-apps/cli@latest android build --apk --target aarch64 || goto :fail
+npx --no-install tauri android build --apk --target aarch64 || goto :fail
 
 if not exist "release" mkdir "release"
 for /r "src-tauri\gen\android" %%f in (*-release-*.apk *-universal-release.apk) do (
